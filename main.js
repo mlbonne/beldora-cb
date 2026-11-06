@@ -820,7 +820,8 @@ async function runSelfTest (outDir) {
 	const port = await startServer({siteRoot: SITE_ROOT, uiDir: UI_DIR, modulesDir: MODULES_DIR, port: 47690, imageDirs});
 	BASE_URL = `http://127.0.0.1:${port}`;
 	const st = require("./selftest");
-	if (process.env.TOMEBINDER_SHEET) await st.sheet({baseUrl: BASE_URL, outDir, appDir: APP_DIR});
+	if (process.env.TOMEBINDER_FORMS) await st.forms({baseUrl: BASE_URL, outDir, appDir: APP_DIR});
+	else if (process.env.TOMEBINDER_SHEET) await st.sheet({baseUrl: BASE_URL, outDir, appDir: APP_DIR});
 	else if (process.env.TOMEBINDER_DICE) await st.dice({baseUrl: BASE_URL, outDir, appDir: APP_DIR});
 	else if (process.env.TOMEBINDER_STORE) await st.store({baseUrl: BASE_URL, outDir, appDir: APP_DIR});
 	else if (process.env.TOMEBINDER_SPELLABILITY) await st.spellability({baseUrl: BASE_URL, outDir, appDir: APP_DIR, renderPdf});

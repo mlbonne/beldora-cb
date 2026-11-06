@@ -930,3 +930,102 @@ async function sheet ({baseUrl, outDir, appDir}) {
 }
 
 module.exports.sheet = sheet;
+
+/**
+ * FORMS: the Temporary Form and Companions & Summons cards inside the 1.8 sheet. A Moon Druid takes a Wild
+ * Shape and summons a beast; a Wizard brings a familiar and a fey. Screens at desktop, tablet and phone sizes.
+ */
+async function forms ({baseUrl, outDir, appDir}) {
+	fs.mkdirSync(outDir, {recursive: true});
+	const win = new BrowserWindow({show: false, width: 1600, height: 1000, webPreferences: {preload: path.join(appDir, "preload.js"), contextIsolation: true, sandbox: false}});
+	win.webContents.on("console-message", (e, level, message, line, sourceId) => { if (level >= 2) fs.appendFileSync(path.join(outDir, "console.txt"), `${message} (${sourceId}:${line})\n`); });
+	await win.loadURL(`${baseUrl}/tb-app.html`);
+	const js = (code) => win.webContents.executeJavaScript(`(async () => { ${code} })()`);
+	const wait = (ms) => new Promise(r => setTimeout(r, ms));
+	const shot = async (name) => { await wait(600); win.webContents.invalidate(); await wait(400); fs.writeFileSync(path.join(outDir, name), (await win.webContents.capturePage()).toPNG()); };
+	await wait(3000);
+	const out = {};
+	const helpers = `
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const row = (n) => [...document.querySelectorAll("#view-play .pl-act")].find(r => r.querySelector(".t")?.firstChild?.textContent === n);
+		const tabOf = async (k) => { TBViewPlay.state.actTab = k; await TBViewPlay.render(); await wait(700); };
+		const next = async () => { const b = [...document.querySelectorAll(".modal .btn.primary")].find(x => ["Cast", "Next"].includes(x.textContent)); if (b) { b.click(); await wait(1800); } };
+		const pickIn = async (re, variant) => {
+			const r = [...document.querySelectorAll(".modal .pl-row")].find(x => re.test(x.querySelector(".nm").textContent));
+			if (!r) return false;
+			const sel = r.querySelector("select"); if (sel && variant) { sel.value = variant; sel.dispatchEvent(new Event("change")); }
+			r.querySelector(".btn.primary").click(); await wait(1500); return true;
+		};
+		const use = async (name, re, variant, tab) => {
+			if (tab) await tabOf(tab);
+			const r = row(name); if (!r) return "no row " + name;
+			r.querySelector("button").click(); await wait(600);
+			await next();
+			const opt = [...document.querySelectorAll(".modal .btn")].find(b => /^(Yourself|Use|Wild Shape)/.test(b.textContent)); if (opt && !document.querySelector(".modal .pl-row")) { opt.click(); await wait(1200); }
+			return await pickIn(re, variant);
+		};
+		const sheetInfo = (id) => { const c = TBStore.char(id); const P = c.play; return {form: P.form?.name, via: P.form?.via, summons: P.summons.map(s => s.name + " (" + s.via + ") AC " + s.ac + " HP " + s.hp + "/" + s.hpMax), cards: [...document.querySelectorAll("#view-play .pl-form .card-h h3")].map(e => e.textContent)}; };
+	`;
+	out.druid = await js(`${helpers}
+		const st = TBStore.get();
+		st.characters.push({id: "fx-druid", name: "Moon Druid", classes: [{name: "Druid", source: "XPHB", level: 8, subclass: {name: "Circle of the Moon", shortName: "Moon", source: "XPHB"}}], species: {name: "Human", source: "XPHB"}, background: {name: "Sage", source: "XPHB"}, abilities: {method: "manual", base: {str: 10, dex: 14, con: 14, int: 10, wis: 17, cha: 8}}, equipment: {items: [{name: "Leather Armor", source: "XPHB", qty: 1, equipped: true}], cp: 1000}, choices: {}, feats: [], spells: [{name: "Summon Beast", source: "XPHB"}], optfeatures: [], settings: {}, xp: 34000, createdAt: Date.now()});
+		TBApp.setView("play"); await TBViewPlay.startSession("fx-druid"); await wait(2500);
+		const sb = await use("Summon Beast", /^Bestial Spirit/, "Land", "action");
+		const ws = await use("Wild Shape", /^Brown Bear|^Dire Wolf|^Giant Spider|^Black Bear/, null, "bonus");
+		await tabOf("action");
+		document.querySelector("#view-play .pl-form")?.scrollIntoView(); document.querySelector(".pl-body").scrollTop -= 70;
+		return {ws, sb, ...sheetInfo("fx-druid")};
+	`);
+	await shot("forms-druid-desktop.png");
+	out.druidCompanions = await js(`document.querySelectorAll("#view-play .pl-form")[1]?.scrollIntoView(); document.querySelector(".pl-body").scrollTop -= 70; await new Promise(r => setTimeout(r, 300)); return [...document.querySelectorAll("#view-play .pl-summon")].map(e => e.innerText.replace(/\\n+/g, " | "))`);
+	await shot("forms-druid-summons.png");
+	out.wizard = await js(`${helpers}
+		const st = TBStore.get();
+		[...document.querySelectorAll("#view-play .btn")].find(b => /End session/.test(b.textContent)).click(); await wait(800);
+		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "End without XP").click(); await wait(1200);
+		st.characters.push({id: "fx-wiz", name: "Familiar Wizard", classes: [{name: "Wizard", source: "XPHB", level: 9}], species: {name: "Human", source: "XPHB"}, background: {name: "Sage", source: "XPHB"}, abilities: {method: "manual", base: {str: 8, dex: 14, con: 14, int: 17, wis: 12, cha: 10}}, equipment: {items: [], cp: 1000}, choices: {}, feats: [], spells: [{name: "Find Familiar", source: "XPHB"}, {name: "Summon Fey", source: "XPHB"}], optfeatures: [], settings: {}, xp: 48000, createdAt: Date.now()});
+		await TBViewPlay.startSession("fx-wiz"); await wait(2500);
+		const ff = await use("Find Familiar", /^Owl|^Cat|^Raven/, null, "other");
+		const sf = await use("Summon Fey", /^Fey Spirit/, "Mirthful", "action");
+		await tabOf("action");
+		document.querySelector("#view-play .pl-form")?.scrollIntoView(); document.querySelector(".pl-body").scrollTop -= 70;
+		return {ff, sf, ...sheetInfo("fx-wiz"), rows: [...document.querySelectorAll("#view-play .pl-summon")].map(e => e.innerText.replace(/\\n+/g, " | "))};
+	`);
+	await shot("forms-wizard-desktop.png");
+	// Back to the druid (form + summon) at tablet sizes and on the phone
+	await js(`${helpers}
+		[...document.querySelectorAll("#view-play .btn")].find(b => /End session/.test(b.textContent)).click(); await wait(800);
+		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "End without XP").click(); await wait(1200);
+		await TBViewPlay.startSession("fx-druid"); await wait(2000);`);
+	out.tablet = {};
+	for (const [w, hgt] of [[820, 1180], [768, 1024]]) {
+		win.setContentSize(w, hgt);
+		await wait(900);
+		out.tablet[w] = await js(`
+			TBViewPlay.state.mainTab = "actions"; TBViewPlay.state.actTab = "action"; await TBViewPlay.render(); await new Promise(r => setTimeout(r, 900));
+			document.querySelector(".pl-sheet").classList.add("pl-touch");
+			document.querySelector("#view-play .pl-form")?.scrollIntoView(); document.querySelector(".pl-body").scrollTop -= 60;
+			const over = [...document.querySelectorAll("#view-play .pl-form, #view-play .pl-fstats, #view-play .pl-summon")].filter(e => e.scrollWidth > e.clientWidth + 2).map(e => e.className);
+			return {zoom: document.querySelector(".pl-sheet").style.zoom, overflowing: over, form: !!document.querySelector("#view-play .pl-form"), summons: document.querySelectorAll("#view-play .pl-summon").length};
+		`);
+		await shot(`forms-tablet-${w}.png`);
+	}
+	win.setSize(400, 860);
+	await js(`TBStore.flush && await TBStore.flush();`);
+	await win.loadURL(`${baseUrl}/tb-app.html?phone`);
+	await wait(3500);
+	out.phone = await js(`
+		TBApp.setView("play"); await TBViewPlay.startSession("fx-druid"); await new Promise(r => setTimeout(r, 2500));
+		const over = [...document.querySelectorAll("#view-play .pl-form, #view-play .pl-fstats, #view-play .pl-summon")].filter(e => e.scrollWidth > e.clientWidth + 2).map(e => e.className);
+		const r1 = document.querySelector(".pm-r1");
+		return {form: !!document.querySelector("#view-play .pl-form"), summons: document.querySelectorAll("#view-play .pl-summon").length, overflowing: over, chips: [...document.querySelectorAll(".pm-chip")].map(e => e.textContent),
+			strip: r1 ? {html: r1.outerHTML.slice(0, 700), kids: [...r1.children].map(k => k.className + " " + Math.round(k.getBoundingClientRect().width) + "x" + Math.round(k.getBoundingClientRect().height) + " @" + Math.round(k.getBoundingClientRect().left))} : null};
+	`);
+	await shot("forms-phone-act.png");
+	await js(`const s = document.querySelectorAll("#view-play .pl-form")[1]; if (s) { s.scrollIntoView(); } await new Promise(r => setTimeout(r, 400));`);
+	await shot("forms-phone-summons.png");
+	fs.writeFileSync(path.join(outDir, "forms.json"), JSON.stringify(out, null, 2));
+	win.destroy();
+}
+
+module.exports.forms = forms;

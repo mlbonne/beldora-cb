@@ -752,7 +752,7 @@ globalThis.TBViewPlay = (() => {
 		];
 		const sc = d.spellcasting;
 		return h("div.pm-head",
-			h("div.pm-r1", h("b.pm-name", d.name), h("span.pm-round", `Round ${T.round}`), undoButtons("pm"), h("button.btn.ghost.small.pm-more", {title: "Dice, rests, End session", on: {click: () => phoneMenu(c, d)}}, "⋯")),
+			h("div.pm-r1", h("b.pm-name", d.name), h("span.pm-round", `Round ${T.round}`), undoButtons("pm-undo"), h("button.btn.ghost.small.pm-more", {title: "Dice, rests, End session", on: {click: () => phoneMenu(c, d)}}, "⋯")),
 			h("div.pm-r2",
 				h("button.pm-hp", {on: {click: () => goTab("stats")}}, h("b", `${cur}`), `/${d.hp}`, P.temp ? h("span.pm-temp", ` +${P.temp}`) : null),
 				h("span", h("small", "AC "), h("b", String(d.ac))),

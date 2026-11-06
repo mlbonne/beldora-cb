@@ -113,6 +113,7 @@ It's a D&D 2024 companion app built on the open-source 5etools site.
   - Always set a throwaway `BELDORA_HOME`. From bash, stdin should come from /dev/null.
   - **This machine (since 2026-11-05) has no Node.js on PATH.** Use the project's Electron as Node: `ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/electron.exe --check file.js`, and run self-tests with `node_modules/electron/dist/electron.exe .` instead of `npx electron .`.
   - **Modes:**
+    - `FORMS`: Temporary Form and Companions & Summons cards in the 1.8 sheet (Wild Shape + Summon Beast, Find Familiar + Summon Fey) at desktop, tablet and phone sizes.
     - `SHEET`: the 1.8 tabbed Play sheet: Features, Equipment, Notes (notes text, clip, every homebrew type), About, End session write-back, character-page Notes card, phone tabs.
     - `PLAY`: Play tab, Polymorph, Summon Beast, cheat-sheet plan.
     - `STORE`: gating, prices, pages, barter, buy/sell, End session write-back.
