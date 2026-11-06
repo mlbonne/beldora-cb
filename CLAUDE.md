@@ -5,8 +5,8 @@ It's a D&D 2024 companion app built on the open-source 5etools site.
 
 ## Current versions (2026-11-05)
 - **Desktop installer:** `Beldora-CB-Setup-1.7.1.exe` (package.json 1.7.1).
-- **Interface:** `ui/version.json` = `{"version": "1.8.1", "minApp": "1.5.0", "minAndroid": "1.7.0"}`, published to the in-app updater on 2026-11-06 (desktop and Android get it).
-- **Web:** 1.8.1, live at https://beldora-cb.beldora-cb.workers.dev (Cloudflare Worker `beldora-cb`). Installable as an app (manifest with 192/512 icons, apple-* tags).
+- **Interface:** `ui/version.json` = `{"version": "1.8.2", "minApp": "1.5.0", "minAndroid": "1.7.0"}`, published to the in-app updater on 2026-11-06 (desktop and Android get it).
+- **Web:** 1.8.2, live at https://beldora-cb.beldora-cb.workers.dev (Cloudflare Worker `beldora-cb`). Installable as an app (manifest with 192/512 icons, apple-* tags).
 - **Tablets:** the user runs the web app installed on a tablet in portrait. Tablets get the full app (phone layout only when the screen's short side < 600 px, the window < 520 px, the Android app, or `?phone`; `?full` forces full). Under 1350 px the Play sheet gets `.pl-tablet`: the three columns laid out at 980 px and scaled with CSS `zoom` (`fitSheet` in view-play.js); `.pl-touch` (coarse pointer) enlarges targets.
 - **Android APK:** 1.7.0, versionCode 6 (`mobile/android/app/build.gradle`). The user has it installed. The next APK needs versionCode 7 or higher.
 - **Pending:** confirm with the user that the Android in-app update to 1.7.1 (phone header fix) worked. It's the first real Android update.
