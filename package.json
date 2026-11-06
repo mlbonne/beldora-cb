@@ -1,0 +1,96 @@
+{
+  "name": "beldora-cb",
+  "productName": "Beldora Character Builder",
+  "version": "1.7.1",
+  "description": "Beldora Character Builder (Beldora CB): D&D 2024 hero builder, wiki explorer and bookbinder on top of 5etools",
+  "main": "main.js",
+  "author": "Matheus",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "stage-site": "node scripts/stage-site.js",
+    "dist": "node scripts/stage-site.js && electron-builder --win nsis",
+    "build:web": "node scripts/build-web.js web",
+    "serve:web": "node scripts/serve-web.js 8080",
+    "publish:update": "node scripts/publish-update.js",
+    "deploy:web": "node scripts/build-web.js web && npx --yes wrangler deploy",
+    "build:android": "node scripts/build-web.js mobile && cd mobile && npx cap sync android && cd android && cmd /c gradlew.bat assembleRelease"
+  },
+  "dependencies": {
+    "@fontsource/alegreya-sans": "^5.3.0",
+    "@fontsource/cinzel": "^5.3.0",
+    "@fontsource/eb-garamond": "^5.3.0",
+    "pagedjs": "^0.4.3",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "app.beldora.cb",
+    "productName": "Beldora Character Builder",
+    "asar": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "server.js",
+      "updater.js",
+      "preload.js",
+      "selftest.js",
+      "package.json",
+      "ui/**/*",
+      "!ui/tb-test.html"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "copyright": "Beldora CB",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Beldora Character Builder",
+      "uninstallDisplayName": "Beldora Character Builder",
+      "artifactName": "Beldora-CB-Setup-${version}.exe",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "license": "build/license.txt",
+      "include": "build/installer.nsh"
+    },
+    "extraResources": [
+      {
+        "from": "site-bundle",
+        "to": "site",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "build/images",
+        "to": "images",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
+  }
+}

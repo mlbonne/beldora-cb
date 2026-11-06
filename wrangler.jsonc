@@ -1,0 +1,20 @@
+{
+  // Beldora CB on Cloudflare: the web version (static files from web-dist/, `npm run deploy:web`)
+  // and the in-app update service (cloud/worker.js + the UPDATES KV namespace, `npm run publish:update`)
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "beldora-cb",
+  "main": "cloud/worker.js",
+  "compatibility_date": "2026-10-19",
+  "assets": {
+    "directory": "web-dist",
+    "binding": "ASSETS",
+    // Serve pages at their own .html paths: the app opens tb-*.html?preview=1 frames by name
+    "html_handling": "none",
+    "not_found_handling": "none",
+    // Only the update API runs code; every other request is a plain static file
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [
+    {"binding": "UPDATES", "id": "51bfce8dafe44821a3bc9be0034ec67a"}
+  ]
+}

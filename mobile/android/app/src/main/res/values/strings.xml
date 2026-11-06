@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Beldora CB</string>
+    <string name="title_activity_main">Beldora CB</string>
+    <string name="package_name">app.beldora.cb</string>
+    <string name="custom_url_scheme">app.beldora.cb</string>
+</resources>

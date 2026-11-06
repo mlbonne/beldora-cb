@@ -1,0 +1,27 @@
+node_modules/
+dist/
+site-bundle/
+dev-home/
+web-dist/
+mobile/www/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+dist-updates/
+
+# Secrets: Android signing key and passwords (never commit)
+*.jks
+*.keystore
+keystore.properties
+local.properties
+
+# Build / backup output
+mobile/android/build/
+mobile/android/app/build/
+*.apk
+*.aab
+*.exe

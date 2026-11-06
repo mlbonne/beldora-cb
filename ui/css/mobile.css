@@ -1,0 +1,91 @@
+/* No pinch or double-tap zoom: the layout is already sized for the screen */
+html { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* Phones and narrow windows (the Android app always uses this layout) */
+@media (max-width: 860px) {
+	body { font-size: 15px; }
+	#tb-top { height: auto; min-height: 48px; padding: 6px 10px; gap: 8px; flex-wrap: wrap; padding-top: max(6px, env(safe-area-inset-top)); }
+	.tb-brand { font-size: 16px; }
+	#tb-nav button { padding: 5px 10px; font-size: 13px; }
+	.tb-top-right { margin-left: auto; }
+
+	/* Characters / Books: list becomes a strip above the content */
+	#view-characters, #view-books, #view-encounters { flex-direction: column; }
+	.char-side { width: 100%; flex: 0 0 auto; max-height: 34vh; border-right: none; border-bottom: 1px solid var(--line); }
+	.char-side-head { padding: 8px 10px; }
+	.char-list { display: flex; gap: 6px; overflow-x: auto; padding: 6px 10px; }
+	.char-card { flex: 0 0 auto; min-width: 150px; margin: 0; }
+	.char-main { min-height: 0; flex: 1; }
+	.char-tabs { overflow-x: auto; padding: 6px 8px 0; white-space: nowrap; }
+	.char-tabs .ttl { font-size: 16px; max-width: 40vw; margin-right: 8px; }
+	.char-tabs button { padding: 6px 10px; }
+
+	/* Builder */
+	.bsteps { flex-wrap: nowrap; overflow-x: auto; padding: 6px 8px; }
+	.bstep { min-width: 84px; flex: 0 0 auto; padding: 5px 8px; }
+	.bsteps .btn.primary { flex: 0 0 auto; }
+	.bbody { overflow: auto; }
+	.bsplit { display: block; }
+	.bcol { overflow: visible; padding: 10px 12px 20px; }
+	.bcol + .bcol { border-left: none; border-top: 1px solid var(--line); }
+	.detail-col .detail-frame { height: 46vh; flex: none; }
+	.bstart { grid-template-columns: 1fr; padding: 12px; }
+	.ogrid { grid-template-columns: 1fr; padding: 10px 12px 30px; }
+	.bhead { flex-wrap: wrap; padding: 10px 12px 4px; }
+	.bhead input[type=search] { width: 100%; }
+	.cls-tabs { flex-wrap: wrap; padding: 8px 12px; }
+	.abil-table th, .abil-table td { padding: 5px 4px; }
+
+	/* Character view */
+	.hero { padding: 10px 12px 40px; }
+	.hhead { flex-wrap: wrap; }
+	.hname { font-size: 24px; }
+	.hactions { width: 100%; flex-wrap: wrap; }
+	.habils { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
+	.habil { width: auto; }
+	.htiles { display: grid; grid-template-columns: repeat(2, 1fr); }
+	.hgrid { grid-template-columns: 1fr; }
+	.htable { font-size: 13px; }
+
+	/* Book editor and export */
+	.book { flex-direction: column; overflow: auto; }
+	.book-outline { width: 100%; min-width: 0; border-right: none; max-height: none; }
+	.book-tree { overflow: visible; }
+	.book-meta { grid-template-columns: 1fr; }
+	.book-preview { min-height: 55vh; }
+	.export { grid-template-columns: 1fr; padding: 12px; }
+	.preview-box { height: 70vh; }
+	.grid2 { grid-template-columns: 1fr; }
+
+	/* Pickers and dialogs fill the screen */
+	.modal-back { align-items: stretch; }
+	.modal { max-width: 100vw; max-height: 100vh; width: 100vw; border-radius: 0; }
+	.modal.picker { width: 100vw; height: 100vh; }
+	.picker .modal-b { flex-direction: column; }
+	.picker-left { width: 100%; border-right: none; flex: 1 1 55%; min-height: 0; }
+	.picker-right { flex: 1 1 45%; min-height: 0; border-top: 1px solid var(--line); }
+	.modal-f { flex-wrap: wrap; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+	.modal .prompt div, .modal-b > div[style*="width"] { width: auto !important; }
+	#tb-toasts { left: 10px; right: 10px; align-items: stretch; }
+	.toast { max-width: none; }
+	.files { padding: 12px; }
+
+	/* Encounters */
+	.enc-build { grid-template-columns: 1fr; padding: 10px 12px 40px; gap: 12px; }
+	.enc-col { gap: 12px; }
+	.enc-title { width: 52vw; font-size: 16px; margin-right: 6px; }
+	.enc-row { flex-wrap: wrap; row-gap: 4px; }
+	.enc-row .nm { flex-basis: calc(100% - 150px); }
+	.enc-list { max-height: 50vh; }
+	.enc-list .pl-row .info:first-of-type { display: none; }
+
+	/* Wiki: the clip tray floats over the page instead of squeezing it */
+	.wiki-body { position: relative; }
+	.wiki-tray { position: absolute; right: 0; top: 0; bottom: 0; width: min(300px, 85vw); z-index: 5; box-shadow: -6px 0 20px rgba(0, 0, 0, 0.5); }
+	.wiki-bar { flex-wrap: nowrap; overflow-x: auto; }
+	.wiki-bar .btn { flex: 0 0 auto; }
+	.wiki-title { display: none; }
+}
+
+/* Android app: no wiki or DM books */
+.tb-mobile .wiki-only { display: none !important; }

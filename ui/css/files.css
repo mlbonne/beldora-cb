@@ -1,0 +1,32 @@
+/* region App Files */
+#view-files { overflow: auto; }
+.files { padding: 18px 22px 50px; width: 100%; box-sizing: border-box; max-width: 1300px; }
+.files-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+.files-head h2 { margin: 0 0 4px; font-family: var(--head); color: var(--accent2); font-size: 22px; }
+.fpath { font-family: Consolas, monospace; font-size: 12.5px; color: var(--text2); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 3px 7px; margin-top: 4px; word-break: break-all; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.fcard { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.fcard-h { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.fcard-h h3 { margin: 0; font-family: var(--head); font-size: 16px; color: var(--accent2); letter-spacing: 0.04em; }
+.ficon { font-size: 18px; }
+.fline { margin-top: 6px; font-size: 14px; color: var(--text); }
+.fline .muted, .fline.muted { font-size: 13px; }
+.warn { color: #f0cf8e; }
+.fhelp { margin-top: 8px; font-size: 13.5px; color: var(--text2); }
+.fhelp summary { cursor: pointer; color: var(--accent2); }
+.fhelp ol { margin: 6px 0 0; padding-left: 18px; }
+.fhelp li { margin-bottom: 4px; }
+.updater .upd-sec { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 12px; }
+.badge { font-size: 12px; border: 1px solid var(--line2); border-radius: 999px; padding: 0 8px; color: var(--text2); margin-left: 4px; }
+.badge.new { border-color: var(--accent); color: #1a140c; background: var(--accent); font-weight: 700; }
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 5px; }
+.cat { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 13.5px; background: var(--bg); }
+.cat.on { border-color: var(--accent); background: #3a2e1c; }
+.cat input { accent-color: var(--accent); }
+.cat .have { color: var(--green); font-weight: 700; }
+.prog { margin-top: 12px; }
+.prog-l { font-size: 13.5px; margin-bottom: 5px; }
+.prog-bar { height: 10px; background: var(--bg); border: 1px solid var(--line2); border-radius: 999px; overflow: hidden; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, #8a6a30, #c9a25e); transition: width 0.2s; }
+.btn.on { border-color: var(--accent); color: var(--accent2); }
+/* endregion */

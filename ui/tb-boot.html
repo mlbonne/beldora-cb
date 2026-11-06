@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beldora CB</title>
+<style>html, body { margin: 0; height: 100%; background: #16130f; }</style>
+<script>
+/*
+ * Android boot page: starts the interface installed by the in-app updater (kept in IndexedDB) when it is newer
+ * than the one inside the APK; otherwise, or after two failed starts, opens the built-in tb-app.html.
+ */
+(async () => {
+	const builtIn = () => location.replace("tb-app.html");
+	const cmp = (a, b) => {
+		const pa = String(a || "0").split(".").map(Number);
+		const pb = String(b || "0").split(".").map(Number);
+		for (let i = 0; i < 3; ++i) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+		return 0;
+	};
+	try {
+		const active = localStorage.getItem("beldora-ui-active");
+		if (!active || /[?&]builtin\b/.test(location.search)) return builtIn();
+		// Two starts in a row that never finished: go back to the built-in version
+		const boots = Number(localStorage.getItem("beldora-ui-boots") || 0);
+		if (boots >= 2) { localStorage.removeItem("beldora-ui-active"); localStorage.setItem("beldora-ui-boots", "0"); return builtIn(); }
+		const bundled = (await (await fetch("__tb/version.json", {cache: "no-store"})).json()).version;
+		if (cmp(active, bundled) <= 0) { localStorage.removeItem("beldora-ui-active"); return builtIn(); }
+		const rec = await new Promise((resolve, reject) => {
+			const r = indexedDB.open("beldora-ui", 1);
+			r.onupgradeneeded = () => r.result.createObjectStore("bundles");
+			r.onerror = () => reject(r.error);
+			r.onsuccess = () => {
+				const g = r.result.transaction("bundles").objectStore("bundles").get(active);
+				g.onsuccess = () => resolve(g.result);
+				g.onerror = () => reject(g.error);
+			};
+		});
+		if (!rec || !rec.files || !rec.files["tb-app.html"]) { localStorage.removeItem("beldora-ui-active"); return builtIn(); }
+		localStorage.setItem("beldora-ui-boots", String(boots + 1));
+		const bytes = (b64) => Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+		const text = (b64) => new TextDecoder().decode(bytes(b64));
+		const TYPES = {js: "text/javascript", css: "text/css", svg: "image/svg+xml", png: "image/png", jpg: "image/jpeg", webp: "image/webp", json: "application/json", woff2: "font/woff2"};
+		const url = {};
+		const blob = (rel, data) => URL.createObjectURL(new Blob([data], {type: TYPES[rel.split(".").pop()] || "application/octet-stream"}));
+		const here = location.href.replace(/[^/]*$/, "");
+		// Images and other files first, then stylesheets (their url()s point at the images or the APK's fonts)
+		Object.keys(rec.files).filter(r => !/\.(css|html)$/.test(r)).forEach(r => { url[r] = blob(r, bytes(rec.files[r])); });
+		Object.keys(rec.files).filter(r => /\.css$/.test(r)).forEach(r => {
+			const base = `${here}__tb/${r.replace(/[^/]*$/, "")}`;
+			const css = text(rec.files[r]).replace(/url\((['"]?)([^'")]+)\1\)/g, (m, q, u) => {
+				if (/^(data:|blob:|https?:|#)/.test(u)) return m;
+				const abs = new URL(u, base).href;
+				const rel = abs.startsWith(`${here}__tb/`) ? abs.slice(`${here}__tb/`.length) : null;
+				return `url("${rel && url[rel] ? url[rel] : abs}")`;
+			});
+			url[r] = blob(r, css);
+		});
+		// Written into this (already UTF-8) page: a <meta charset> written late makes Chrome reload the page
+		const html = text(rec.files["tb-app.html"]).replace(/<meta\s+charset=[^>]*>/i, "").replace(/(src|href)="__tb\/([^"]+)"/g, (m, a, r) => (url[r] ? `${a}="${url[r]}"` : m));
+		window.__tbBootedUpdate = active;
+		// Build the page in place (no document.write): head and body from the update, then its scripts one by one
+		// in their order, then the "load" event the app starts on
+		const doc = new DOMParser().parseFromString(html, "text/html");
+		document.title = doc.title;
+		[...doc.head.children].filter(el => el.tagName !== "SCRIPT").forEach(el => document.head.appendChild(document.importNode(el, true)));
+		const body = document.importNode(doc.body, true);
+		body.querySelectorAll("script").forEach(s => s.remove());
+		document.body.replaceWith(body);
+		for (const s of doc.querySelectorAll("script")) {
+			const n = document.createElement("script");
+			[...s.attributes].forEach(a => n.setAttribute(a.name, a.value));
+			n.removeAttribute("defer");
+			if (s.src) {
+				n.async = false;
+				await new Promise((resolve) => { n.onload = resolve; n.onerror = resolve; document.head.appendChild(n); });
+			} else {
+				n.textContent = s.textContent;
+				document.head.appendChild(n);
+			}
+		}
+		document.dispatchEvent(new Event("DOMContentLoaded"));
+		window.dispatchEvent(new Event("load"));
+	} catch (e) {
+		builtIn();
+	}
+})();
+</script>
+</head>
+<body></body>
+</html>

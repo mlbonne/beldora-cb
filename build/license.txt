@@ -1,0 +1,44 @@
+BELDORA CHARACTER BUILDER (BELDORA CB)
+======================================
+
+Please read before installing.
+
+WHAT IT IS
+Beldora CB is a desktop companion for D&D 2024: a step-by-step hero builder,
+a wiki explorer, and a bookbinder that exports a filled character sheet,
+ability/spell cards, a booklet and a cheat sheet as PDFs.
+
+WHAT'S INCLUDED
+Everything needed to run: the app and a built-in copy of the 5etools site
+(rules, books and adventures text, wiki pages, search). No internet connection
+is needed to use it.
+
+EVERYTHING STAYS IN THE INSTALLATION FOLDER
+Beldora CB writes nothing to AppData. Inside the folder you choose:
+  Saves\     your characters and books (one file each)
+  Exports\   the PDFs you export
+  images\    5etools artwork for the wiki (empty at first)
+  5etools\   newer text & rules downloaded by the updater
+  System\    the app's own cache and settings
+Choose a folder you own (the default is C:\Users\<you>\Beldora CB), not
+Program Files. Updating keeps these folders; uninstalling asks first.
+
+IMAGES AND UPDATES
+Open "App Files" in the app: it links to these folders and has a 5etools
+updater that checks GitHub (5etools-mirror-3/5etools-src for text & rules and
+5etools-mirror-3/5etools-img for images) and downloads only what you choose.
+
+WINDOWS SECURITY WARNING
+The installer is not code-signed, so Windows SmartScreen may show
+"Windows protected your PC". Choose "More info" and then "Run anyway" if you
+trust the person who sent it to you.
+
+LICENSE
+5etools (https://github.com/5etools-mirror-3/5etools-src) is under the MIT
+License; its license is included as resources\site\LICENSE-5etools.md.
+Beldora CB's own code is provided under the MIT License, "as is", without
+warranty of any kind. Bundled fonts (Cinzel, EB Garamond, Alegreya Sans) are
+under the SIL Open Font License. Paged.js and pdf-lib are under the MIT
+License. Electron is under the MIT License. Dungeons & Dragons and related
+content are trademarks and copyright of Wizards of the Coast; Beldora CB is
+an unofficial fan tool and is not affiliated with Wizards of the Coast.

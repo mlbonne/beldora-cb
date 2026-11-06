@@ -1,0 +1,8 @@
+{
+  "appId": "app.beldora.cb",
+  "appName": "Beldora CB",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

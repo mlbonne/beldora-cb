@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Beldora CB self-test</title>
+	<!-- 5etools runtime (data + renderer) -->
+	<script defer src="js/parser.js"></script>
+	<script defer src="js/utils.js"></script>
+	<script defer src="js/utils-ui.js"></script>
+	<script defer src="lib/localforage.js"></script>
+	<script type="module" src="js/utils-dataloader.js"></script>
+	<script type="module" src="js/utils-brew.js"></script>
+	<script type="module" src="js/utils-config.js"></script>
+	<script defer src="js/hist.js"></script>
+	<script defer src="js/render.js"></script>
+	<script defer src="js/render-dice.js"></script>
+
+	<!-- Beldora CB -->
+	<script defer src="__tb/js/data.js"></script>
+	<script defer src="__tb/js/sanitize.js"></script>
+	<script defer src="__tb/js/bookgen.js"></script>
+	<script defer src="__tb/js/hero-rules.js"></script>
+	<script defer src="__tb/js/ui.js"></script>
+	<script defer src="__tb/js/view-export.js"></script>
+	<script defer src="__tb/js/export-data.js"></script>
+</head>
+<body>
+<script>
+	// Builds a sample multiclass character and hands the export payload to the main process
+	window.addEventListener("load", async () => {
+		try {
+			const char = {
+				id: "selftest", name: "Vesper Ashgrove", player: "Tester",
+				species: {name: "Elf", source: "XPHB"}, background: {name: "Acolyte", source: "XPHB"},
+				classes: [
+					{name: "Warlock", source: "XPHB", level: 5, subclass: {shortName: "Fiend", name: "Fiend Patron", source: "XPHB"}},
+					{name: "Fighter", source: "XPHB", level: 2, subclass: null},
+				],
+				abilities: {method: "standard", base: {str: 10, dex: 14, con: 13, int: 8, wis: 12, cha: 15}},
+				choices: {
+					"species:lineage": ["Elf; Drow Lineage"], "species:skills": ["perception"], "species:spells:spellAbility": ["cha"],
+					"bg:ability": {cha: 2, wis: 1},
+					"class:warlock|xphb:skills": ["arcana", "deception"],
+					"class:warlock|xphb:of:eldritch-invocations": [{name: "Agonizing Blast", source: "XPHB"}, {name: "Pact of the Blade", source: "XPHB"}, {name: "Devil's Sight", source: "XPHB"}],
+					"class:warlock|xphb:cantrips": [{name: "Eldritch Blast", source: "XPHB"}, {name: "Mage Hand", source: "XPHB"}, {name: "Prestidigitation", source: "XPHB"}],
+					"class:warlock|xphb:prepared": [{name: "Hex", source: "XPHB"}, {name: "Armor of Agathys", source: "XPHB"}, {name: "Misty Step", source: "XPHB"}, {name: "Hold Person", source: "XPHB"}, {name: "Counterspell", source: "XPHB"}, {name: "Fireball", source: "XPHB"}],
+					"class:warlock|xphb:L4:ability-score-improvement": [{name: "Ability Score Improvement", source: "XPHB"}],
+					"class:warlock|xphb:L4:ability-score-improvement:ability": {cha: 2},
+					"details:languages": ["elvish", "infernal"],
+				},
+				equipment: {items: [{name: "Leather Armor", source: "XPHB", qty: 1, equipped: true}, {name: "Longsword", source: "XPHB", qty: 1, equipped: true}, {name: "Light Crossbow", source: "XPHB", qty: 1, equipped: true}], cp: 1550},
+				details: {alignment: "Chaotic Neutral", personality: "Speaks in riddles when nervous.", backstory: "Raised in a temple, she bargained with a devil for a second chance.", notes: "Owes a debt to a devil named Malkith."},
+				settings: {},
+			};
+			const book = {id: "b", ownerCharId: "selftest", title: "", chapters: [], hidden: []};
+			await TBBook.syncBook(book, char);
+			const cheat = await TBBook.buildCheat(char);
+			const options = TBViewExport.pdfOptions({...TBViewExport.optionsOf(book), pageSize: new URLSearchParams(location.search).get("size") || "A5", theme: new URLSearchParams(location.search).get("theme") || "parchment"});
+			const A = await TBRules.analyze(char);
+			tbNative.selftestPayload({book: TBViewExport.printableBook(book, char), cheat, options, sheet: TBExportData.sheetData(A), cards: TBExportData.cardsData(A, {})});
+		} catch (e) {
+			tbNative.selftestPayload({error: e.stack || String(e)});
+		}
+	});
+</script>
+</body>
+</html>

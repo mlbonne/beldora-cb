@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+	<title>Beldora Character Builder</title>
+	<link rel="icon" type="image/png" href="__tb/icon.png">
+	<link rel="stylesheet" href="__tb/css/fonts.css">
+	<link rel="stylesheet" href="__tb/css/app.css">
+	<link rel="stylesheet" href="__tb/css/hero.css">
+	<link rel="stylesheet" href="__tb/css/files.css">
+	<link rel="stylesheet" href="__tb/css/encounters.css">
+	<link rel="stylesheet" href="__tb/css/play.css">
+	<link rel="stylesheet" href="__tb/css/store.css">
+	<link rel="stylesheet" href="__tb/css/mobile.css">
+	<link rel="stylesheet" href="__tb/css/phone.css">
+
+	<!-- 5etools runtime (data + renderer) -->
+	<script defer src="js/parser.js"></script>
+	<script defer src="js/utils.js"></script>
+	<script defer src="js/utils-ui.js"></script>
+	<script defer src="lib/localforage.js"></script>
+	<script defer src="__tb/js/native-web.js"></script>
+	<script defer src="__tb/js/android-update.js"></script>
+	<script type="module" src="js/utils-dataloader.js"></script>
+	<script type="module" src="js/utils-brew.js"></script>
+	<script type="module" src="js/utils-config.js"></script>
+	<script defer src="js/hist.js"></script>
+	<script defer src="js/render.js"></script>
+	<script defer src="js/render-dice.js"></script>
+
+	<!-- Beldora CB -->
+	<script defer src="__tb/js/data.js"></script>
+	<script defer src="__tb/js/sanitize.js"></script>
+	<script defer src="__tb/js/bookgen.js"></script>
+	<script defer src="__tb/js/hero-rules.js"></script>
+	<script defer src="__tb/js/store.js"></script>
+	<script defer src="__tb/js/ui.js"></script>
+	<script defer src="__tb/js/pickers.js"></script>
+	<script defer src="__tb/js/view-wiki.js"></script>
+	<script defer src="__tb/js/view-builder.js"></script>
+	<script defer src="__tb/js/leveling.js"></script>
+	<script defer src="__tb/js/view-hero.js"></script>
+	<script defer src="__tb/js/export-data.js"></script>
+	<script defer src="__tb/js/app-update.js"></script>
+	<script defer src="__tb/js/view-files.js"></script>
+	<script defer src="__tb/js/view-book.js"></script>
+	<script defer src="__tb/js/view-export.js"></script>
+	<script defer src="__tb/js/encounter-data.js"></script>
+	<script defer src="__tb/js/view-encounters.js"></script>
+	<script defer src="__tb/js/play-rules.js"></script>
+	<script defer src="__tb/js/play-effects.js"></script>
+	<script defer src="__tb/js/play-triggers.js"></script>
+	<script defer src="__tb/js/play-coverage.js"></script>
+	<script defer src="__tb/js/view-play.js"></script>
+	<script defer src="__tb/js/store-data.js"></script>
+	<script defer src="__tb/js/view-store.js"></script>
+	<script defer src="__tb/js/app.js"></script>
+</head>
+<body>
+	<header id="tb-top">
+		<div class="tb-brand" title="Beldora Character Builder"><img class="tb-brand-logo" src="__tb/img/boar.svg" alt=""> Beldora <span class="tb-brand-cb">CB</span></div>
+		<nav id="tb-nav">
+			<button data-view="wiki" class="active">Wiki</button>
+			<button data-view="characters">Characters</button>
+			<button data-view="books">Books</button>
+			<button data-view="encounters">Encounters</button>
+			<button data-view="play">Play</button>
+			<button data-view="store" disabled title="Start a session in the Play tab to open the Store">Store</button>
+		</nav>
+		<div class="tb-top-right" id="tb-top-right"></div>
+	</header>
+	<main id="tb-main">
+		<section id="view-wiki" class="tb-view active"></section>
+		<section id="view-characters" class="tb-view"></section>
+		<section id="view-books" class="tb-view"></section>
+		<section id="view-encounters" class="tb-view"></section>
+		<section id="view-play" class="tb-view"></section>
+		<section id="view-store" class="tb-view"></section>
+		<section id="view-files" class="tb-view"></section>
+	</main>
+	<nav id="tb-bnav" aria-label="Sections"></nav>
+	<div id="tb-toasts"></div>
+	<div id="tb-modal-root"></div>
+</body>
+</html>

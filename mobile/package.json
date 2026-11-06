@@ -1,0 +1,19 @@
+{
+  "name": "beldora-cb-mobile",
+  "version": "1.3.1",
+  "private": true,
+  "description": "Beldora Character Builder for Android (character builder and exports)",
+  "scripts": {
+    "build:www": "node ../scripts/build-web.js mobile",
+    "sync": "npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.3"
+  }
+}

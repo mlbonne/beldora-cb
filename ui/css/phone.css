@@ -1,0 +1,80 @@
+/* region Phone layout (Android app, web on narrow screens): bottom tab bar, Play and Store as tabbed pages */
+#tb-bnav { display: none; }
+.tb-phone #tb-nav { display: none; }
+/* The header grows by the status bar's height; logo and title sized to fit its 34px row */
+.tb-phone #tb-top { box-sizing: content-box; height: 34px; min-height: 0; padding: env(safe-area-inset-top) 12px 0; flex-wrap: nowrap; overflow: hidden; }
+.tb-phone .tb-brand { font-size: 13.5px; gap: 6px; letter-spacing: 0.05em; line-height: 1; }
+.tb-phone .tb-brand-logo { height: 18px; }
+.tb-phone .tb-brand-cb { font-size: 9px; padding: 1px 4px; vertical-align: 1px; }
+.tb-phone #tb-bnav { display: flex; flex: 0 0 auto; background: #1a1612; border-top: 1px solid var(--line); padding: 4px 4px max(4px, env(safe-area-inset-bottom)); }
+#tb-bnav button { flex: 1; background: none; border: none; color: var(--text3); display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0; font-family: var(--head); font-size: 11.5px; letter-spacing: 0.04em; cursor: pointer; border-radius: 8px; }
+#tb-bnav button .ic { font-size: 19px; line-height: 1.1; font-family: var(--ui); }
+#tb-bnav button.active { color: var(--accent2); background: #2a2219; }
+#tb-bnav button:disabled { opacity: 0.35; }
+
+/* The page: strip on top, tabs, then one scrolling column */
+.pm { display: flex; flex-direction: column; min-width: 0; width: 100%; }
+.pm-head { flex: 0 0 auto; padding: 8px 12px 6px; background: var(--bg2); border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 5px; }
+.pm-r1 { display: flex; align-items: center; gap: 8px; }
+.pm-name { font-family: var(--head); color: var(--accent2); font-size: 17px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-round { color: var(--text3); font-size: 12.5px; white-space: nowrap; }
+.pm-more { font-size: 18px; line-height: 1; padding: 2px 10px; }
+.pm-r2 { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--text2); }
+.pm-r2 b { color: var(--text); font-size: 15px; }
+.pm-r2 small { color: var(--text3); font-size: 11.5px; }
+.pm-hp, .pm-init { background: none; border: none; padding: 0; color: var(--text2); font: inherit; cursor: pointer; }
+.pm-hp b { font-size: 19px; color: #9fd38a; }
+.pm-temp { color: #8fb6e8; }
+.pm-bar { height: 7px; border-radius: 4px; background: #2a241d; display: flex; overflow: hidden; }
+.pm-bar i { display: block; height: 100%; background: #6aa84f; }
+.pm-bar i.t { background: #5d8fd0; }
+.pm-eco { display: flex; align-items: center; gap: 5px; }
+.pm-pip { border: 1px solid var(--line2); background: var(--bg); color: var(--text); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; }
+.pm-pip.used { color: var(--text3); text-decoration: line-through; opacity: 0.6; }
+.pm-chips { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; padding-bottom: 1px; }
+.pm-chips::-webkit-scrollbar { display: none; }
+.pm-chip { flex: 0 0 auto; border: 1px solid var(--line2); background: var(--bg); color: var(--text2); border-radius: 999px; padding: 2px 9px; font-size: 12px; white-space: nowrap; cursor: pointer; font-family: var(--ui); }
+.pm-chip.good { color: #9fd38a; border-color: #4b6a3c; }
+.pm-chip.bad { color: #e79b8a; border-color: #7a3f34; }
+.pm-tabs { flex: 0 0 auto; display: flex; border-bottom: 1px solid var(--line); background: var(--bg2); }
+.pm-tabs button { flex: 1; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text2); padding: 9px 0 7px; font-family: var(--head); font-size: 13px; letter-spacing: 0.04em; cursor: pointer; }
+.pm-tabs button.active { color: var(--accent2); border-bottom-color: var(--accent); }
+.pm-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; -webkit-overflow-scrolling: touch; }
+.pm-body > .pl-col { padding: 10px 10px 28px; gap: 10px; }
+.pm-body .pl-card .card-h { padding: 8px 12px; }
+.pm-grp { margin: 10px 0 2px; font-family: var(--head); color: var(--accent2); font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+.pm-grp:first-child { margin-top: 0; }
+.pm .pl-act { padding: 8px 2px; }
+.pm .pl-act .btn.small { min-height: 34px; padding: 4px 12px; }
+.pm-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pm-stats .pl-stat { min-width: 0; }
+
+/* Store */
+.pm-coins { margin-left: auto; background: none; border: 1px solid var(--line2); border-radius: 999px; color: #f3cf68; font-weight: 700; padding: 3px 10px; font-size: 13.5px; white-space: nowrap; cursor: pointer; }
+.pm-sels { display: flex; gap: 6px; flex-wrap: wrap; }
+.pm-sels select { flex: 1 1 30%; min-width: 0; }
+.pm-vgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px 10px 28px; }
+.pm-vendor { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; color: var(--text); cursor: pointer; font-family: var(--ui); }
+.pm-vendor .ic { font-size: 24px; line-height: 1.1; }
+.pm-vendor b { font-family: var(--head); color: var(--accent2); font-size: 14px; }
+.pm-vendor small { color: var(--text3); font-size: 11.5px; line-height: 1.3; }
+.pm-vendor.on { border-color: var(--accent); }
+.pm-cartbar { flex: 0 0 auto; margin: 6px 10px 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #8a6a2c; color: #fff4d8; border: none; border-radius: 12px; padding: 11px 14px; font-size: 14px; cursor: pointer; }
+.pm .st-cat .card-h { display: none; }
+.pm .st-row .st-price { min-width: 76px; }
+
+/* Dialogs become bottom sheets (pickers stay full screen) */
+.tb-phone .modal-back { align-items: flex-end; justify-content: stretch; }
+.tb-phone .modal:not(.picker) { width: 100vw; max-width: 100vw; max-height: 88vh; border-radius: 16px 16px 0 0; border-bottom: none; position: relative; padding-top: 8px; }
+.tb-phone .modal:not(.picker)::before { content: ""; position: absolute; top: 6px; left: 50%; width: 38px; height: 4px; margin-left: -19px; border-radius: 2px; background: var(--line2); }
+.tb-phone .modal:not(.picker) .modal-b { overflow-y: auto; }
+.tb-phone .modal:not(.picker) .modal-b > div { width: auto !important; max-width: 100%; box-sizing: border-box; flex: 1; }
+.tb-phone .modal .btn { min-height: 42px; }
+.tb-phone .modal-f { flex-wrap: wrap; }
+.tb-phone .modal-f .btn { flex: 1 1 28%; justify-content: center; }
+/* endregion */
+
+/* No scroll boxes inside the page on phones: everything flows in one column */
+.pm .pl-acts, .pm .pl-log, .pm .pl-inv, .pm .pl-effects { max-height: none; overflow: visible; }
+/* Sheet footers: the choices on one row, Cancel underneath */
+.tb-phone .modal-f .btn:first-child:not(:only-child) { order: 9; flex-basis: 100%; }
