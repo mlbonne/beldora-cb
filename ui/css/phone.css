@@ -6,7 +6,7 @@
 .tb-phone .tb-brand { font-size: 13.5px; gap: 6px; letter-spacing: 0.05em; line-height: 1; }
 .tb-phone .tb-brand-logo { height: 18px; }
 .tb-phone .tb-brand-cb { font-size: 9px; padding: 1px 4px; vertical-align: 1px; }
-.tb-phone #tb-bnav { display: flex; flex: 0 0 auto; background: #1a1612; border-top: 1px solid var(--line); padding: 4px 4px max(4px, env(safe-area-inset-bottom)); }
+.tb-phone #tb-bnav { display: flex; flex: 0 0 auto; background: var(--bg-deep); border-top: 1px solid var(--line); padding: 4px 4px max(4px, env(safe-area-inset-bottom)); }
 #tb-bnav button { flex: 1; background: none; border: none; color: var(--text3); display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0; font-family: var(--head); font-size: 11.5px; letter-spacing: 0.04em; cursor: pointer; border-radius: 8px; }
 #tb-bnav button .ic { font-size: 19px; line-height: 1.1; font-family: var(--ui); }
 #tb-bnav button.active { color: var(--accent2); background: #2a2219; }
@@ -25,7 +25,7 @@
 .pm-hp, .pm-init { background: none; border: none; padding: 0; color: var(--text2); font: inherit; cursor: pointer; }
 .pm-hp b { font-size: 19px; color: #9fd38a; }
 .pm-temp { color: #8fb6e8; }
-.pm-bar { height: 7px; border-radius: 4px; background: #2a241d; display: flex; overflow: hidden; }
+.pm-bar { height: 7px; border-radius: 4px; background: var(--line-soft); display: flex; overflow: hidden; }
 .pm-bar i { display: block; height: 100%; background: #6aa84f; }
 .pm-bar i.t { background: #5d8fd0; }
 .pm-eco { display: flex; align-items: center; gap: 5px; }
@@ -59,7 +59,7 @@
 .pm-vendor b { font-family: var(--head); color: var(--accent2); font-size: 14px; }
 .pm-vendor small { color: var(--text3); font-size: 11.5px; line-height: 1.3; }
 .pm-vendor.on { border-color: var(--accent); }
-.pm-cartbar { flex: 0 0 auto; margin: 6px 10px 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #8a6a2c; color: #fff4d8; border: none; border-radius: 12px; padding: 11px 14px; font-size: 14px; cursor: pointer; }
+.pm-cartbar { flex: 0 0 auto; margin: 6px 10px 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--btn2); color: var(--on-btn); border: none; border-radius: 12px; padding: 11px 14px; font-size: 14px; cursor: pointer; }
 .pm .st-cat .card-h { display: none; }
 .pm .st-row .st-price { min-width: 76px; }
 

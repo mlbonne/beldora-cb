@@ -761,6 +761,41 @@ async function sheet ({baseUrl, outDir, appDir}) {
 		return {notesBook: !!b, clipTarget: st.settings.clipTarget === b?.id, tabs: [...document.querySelectorAll(".pl-mtabs button")].map(x => x.textContent)};
 	`);
 	await shot("sheet-actions.png");
+	// Undo / redo: damage, a condition, then back and forward again (buttons and Ctrl+Z / Ctrl+Y)
+	out.undo = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const c = TBStore.char("st-rogue");
+		const hp = () => TBPlay.currentHp(c, null) ?? TBPlay.stateOf(c).hp;
+		const P = () => TBPlay.stateOf(c);
+		const inp = document.querySelector("#view-play .pl-hpctl input[type=number]"); inp.value = "7";
+		[...document.querySelectorAll("#view-play .btn")].find(b => /Damage$/.test(b.textContent)).click(); await wait(1500);
+		const afterDmg = P().hp;
+		[...document.querySelectorAll("#view-play .chip")].find(b => b.textContent === "Prone").click(); await wait(1200);
+		const conds1 = P().conditions.slice();
+		const undoTitle = document.querySelector(".pl-undo button").title;
+		document.querySelector(".pl-undo button").click(); await wait(1200);
+		const conds2 = P().conditions.slice();
+		document.dispatchEvent(new KeyboardEvent("keydown", {key: "z", ctrlKey: true, bubbles: true})); await wait(1200);
+		const hpUndone = P().hp;
+		document.dispatchEvent(new KeyboardEvent("keydown", {key: "y", ctrlKey: true, bubbles: true})); await wait(1200);
+		const hpRedone = P().hp;
+		document.querySelectorAll(".pl-undo button")[1].click(); await wait(1200);
+		const conds3 = P().conditions.slice();
+		return {afterDmg, conds1, undoTitle, conds2, hpUndone, hpRedone, conds3, undoLeft: TBViewPlay.history.undo.length, redoLeft: TBViewPlay.history.redo.length, log0: P().log[0]?.text};
+	`);
+	// Themes: Alpino on the sheet and in the Settings menu, then back to Albion
+	out.themes = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		TBApp.setTheme("alpino"); await wait(500);
+		const bg = getComputedStyle(document.body).backgroundColor;
+		const abil = getComputedStyle(document.querySelector("button.pl-abil")).borderTopColor;
+		return {theme: document.documentElement.dataset.theme, bg, abil, saved: TBStore.get().settings.theme};
+	`);
+	await shot("theme-alpino.png");
+	await js(`TBApp.openSettings(); await new Promise(r => setTimeout(r, 600));`);
+	await shot("settings-alpino.png");
+	out.themes.back = await js(`document.querySelector(".modal .modal-f .btn")?.click(); TBApp.setTheme("albion"); await new Promise(r => setTimeout(r, 400)); return {theme: document.documentElement.dataset.theme || "albion", bg: getComputedStyle(document.body).backgroundColor}`);
+	await shot("theme-albion.png");
 	const tab = (k) => js(`TBViewPlay.state.mainTab = "${k}"; await TBViewPlay.render(); await new Promise(r => setTimeout(r, 900)); document.querySelector(".pl-menu")?.scrollIntoView(); document.querySelector(".pl-body").scrollTop -= 60; return [...document.querySelectorAll(".pl-mtabs button.active")].map(x => x.textContent)`);
 	out.features = await tab("features");
 	out.featureRows = await js(`

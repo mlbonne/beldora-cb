@@ -19,6 +19,71 @@ globalThis.TBViewPlay = (() => {
 	const lc = (s) => String(s ?? "").toLowerCase();
 
 	const char = () => TBStore.char(S.charId);
+
+	// region Undo / redo: an invisible history of the session state (each redraw that changed it is one step)
+	const H = {id: null, undo: [], redo: [], last: null};
+	const HIST_MAX = 150;
+	const snap = (c) => JSON.stringify(c.play || {});
+	/** What a step did: the newest roll-log line it added, if any. */
+	const stepLabel = (before, after) => {
+		try {
+			const a = (JSON.parse(before).log || [])[0];
+			const b = (JSON.parse(after).log || [])[0];
+			if (b && (!a || a.t !== b.t || a.text !== b.text)) return b.text;
+		} catch (e) { /* fall through */ }
+		return "the last change";
+	};
+	const histReset = (c) => { H.id = c ? c.id : null; H.undo = []; H.redo = []; H.last = c ? snap(c) : null; };
+	const histRecord = (c) => {
+		if (H.id !== c.id || H.last == null) { histReset(c); return; }
+		const now = snap(c);
+		if (now === H.last) return;
+		H.undo.push({s: H.last, label: stepLabel(H.last, now)});
+		if (H.undo.length > HIST_MAX) H.undo.shift();
+		H.redo = [];
+		H.last = now;
+	};
+	/** Put a saved state back, in place (callers keep references to the play state). */
+	const histRestore = (c, str) => {
+		const P = c.play;
+		Object.keys(P).forEach(k => delete P[k]);
+		Object.assign(P, JSON.parse(str));
+		P_().stateOf(c);
+		H.last = str;
+		c.updatedAt = Date.now();
+		TBApp.charChanged(c);
+		render();
+	};
+	const undo = () => {
+		const c = char();
+		if (!c || !S.session) return;
+		histRecord(c);
+		const e = H.undo.pop();
+		if (!e) return;
+		H.redo.push({s: H.last, label: e.label});
+		histRestore(c, e.s);
+		TBUI.toast(`Undone: ${e.label}`);
+	};
+	const redo = () => {
+		const c = char();
+		if (!c || !S.session) return;
+		const e = H.redo.pop();
+		if (!e) return;
+		H.undo.push({s: H.last, label: e.label});
+		histRestore(c, e.s);
+		TBUI.toast(`Redone: ${e.label}`);
+	};
+	const undoButtons = (cls = "") => h("span.pl-undo", {class: cls},
+		h("button", {disabled: !H.undo.length, title: H.undo.length ? `Undo: ${H.undo[H.undo.length - 1].label} (Ctrl+Z)` : "Nothing to undo", on: {click: undo}}, "↶"),
+		h("button", {disabled: !H.redo.length, title: H.redo.length ? `Redo: ${H.redo[H.redo.length - 1].label} (Ctrl+Y)` : "Nothing to redo", on: {click: redo}}, "↷"));
+	document.addEventListener("keydown", (e) => {
+		if (!(e.ctrlKey || e.metaKey) || e.altKey || TBApp.state.view !== "play" || !S.session) return;
+		if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+		if (document.querySelector(".modal")) return;
+		const k = e.key.toLowerCase();
+		if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); } else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
+	});
+	// endregion
 	const save = (c, {derived = false} = {}) => {
 		c.updatedAt = Date.now();
 		if (derived) TBApp.charChanged(c); else TBStore.changed("char");
@@ -514,6 +579,7 @@ globalThis.TBViewPlay = (() => {
 			P.sessionXp = 0;
 			S.session = false;
 			S.charId = null;
+			histReset(null);
 			syncNav();
 			TBApp.charChanged(c);
 			render();
@@ -609,6 +675,7 @@ globalThis.TBViewPlay = (() => {
 		phys.addEventListener("change", () => { P.physical = phys.value === "some" ? "some" : phys.value === "all"; P_().log(c, DICE_MODES.find(o => o.value === phys.value).log); save(c); });
 		return h("div.pl-topbar",
 			h("div.pl-seg", {title: "Applies to every d20 roll until you change it"}, ...[["adv", "Advantage"], ["normal", "Normal"], ["dis", "Disadvantage"]].map(([v, l]) => h("button", {class: P.adv === v ? `on ${v}` : "", on: {click: () => { P.adv = v; save(c); }}}, l))),
+			undoButtons(),
 			h("div.spacer"),
 			phys,
 			h("button.btn.small.danger", {title: "Finish the session: XP, equipment, notes, homebrew and About changes", on: {click: () => endSession(c)}}, "⏹ End session"),
@@ -685,7 +752,7 @@ globalThis.TBViewPlay = (() => {
 		];
 		const sc = d.spellcasting;
 		return h("div.pm-head",
-			h("div.pm-r1", h("b.pm-name", d.name), h("span.pm-round", `Round ${T.round}`), h("button.btn.ghost.small.pm-more", {title: "Dice, rests, End session", on: {click: () => phoneMenu(c, d)}}, "⋯")),
+			h("div.pm-r1", h("b.pm-name", d.name), h("span.pm-round", `Round ${T.round}`), undoButtons("pm"), h("button.btn.ghost.small.pm-more", {title: "Dice, rests, End session", on: {click: () => phoneMenu(c, d)}}, "⋯")),
 			h("div.pm-r2",
 				h("button.pm-hp", {on: {click: () => goTab("stats")}}, h("b", `${cur}`), `/${d.hp}`, P.temp ? h("span.pm-temp", ` +${P.temp}`) : null),
 				h("span", h("small", "AC "), h("b", String(d.ac))),
@@ -1539,6 +1606,8 @@ globalThis.TBViewPlay = (() => {
 			} else P_().beginGear(c);
 			openNotes(c);
 			TBStore.changed("char");
+			P_().stateOf(c);
+			histReset(c);
 		}
 		S.charId = id; S.session = true; syncNav(); render();
 	};
@@ -1591,6 +1660,7 @@ globalThis.TBViewPlay = (() => {
 				root.appendChild(h("div.char-main", h("div.empty", h("h2", "This character has no class yet"), h("button.btn.primary", {on: {click: () => { S.session = false; S.charId = null; TBApp.setView("characters"); }}}, "Open the builder"))));
 				return;
 			}
+			histRecord(c);
 			const A = await R().analyze(P_().sessionChar(c));
 			const P = P_().stateOf(c);
 			const formMon = P.form ? (await P_().allMonsters()).byKey.get(P.form.key) : null;
@@ -1629,5 +1699,5 @@ globalThis.TBViewPlay = (() => {
 	};
 	// endregion
 
-	return {render, state: S, startSession, syncNav, effectiveOf, castByName, char, inventoryCard};
+	return {render, state: S, startSession, syncNav, effectiveOf, castByName, char, inventoryCard, undo, redo, history: H};
 })();

@@ -393,13 +393,14 @@ globalThis.TBApp = (() => {
 		const tab = (view, icon, label) => h("button", {"data-view": view, on: {click: () => setView(view)}}, h("span.ic", icon), h("span.lb", label));
 		const more = () => {
 			const items = isMobile()
-				? [["encounters", "⚔ Encounters"], ["updates", "⬆ App updates"]]
-				: [["wiki", "📖 Wiki"], ["books", "📚 Books"], ["encounters", "⚔ Encounters"]];
+				? [["encounters", "⚔ Encounters"], ["updates", "⬆ App updates"], ["settings", "⚙ Settings"]]
+				: [["wiki", "📖 Wiki"], ["books", "📚 Books"], ["encounters", "⚔ Encounters"], ["settings", "⚙ Settings"]];
 			const m = TBUI.modal({
 				title: "More",
 				body: h("div", {style: {padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px"}}, ...items.map(([v, l]) => h("button.btn", {style: {justifyContent: "flex-start"}, on: {click: () => {
 					m.close();
 					if (v === "updates") TBUI.modal({title: "App updates", body: h("div.files", {style: {padding: "12px"}}, TBAppUpdate.card())});
+					else if (v === "settings") openSettings();
 					else setView(v);
 				}}}, l))),
 			});
@@ -565,8 +566,69 @@ globalThis.TBApp = (() => {
 	};
 	// endregion
 
+	// region Settings: theme, and on desktop the 5etools folder and App Files
+	const THEMES = [
+		{id: "albion", name: "Albion", desc: "Dark brown and gold", sw: ["#16130f", "#27221b", "#c9a25e"]},
+		{id: "alpino", name: "Alpino", desc: "Black with red details", sw: ["#0c0c0d", "#1c1c1e", "#c8372d"]},
+	];
+	const isDesktop = () => !!(window.tbNative && !window.tbNative.isWeb);
+	const themeOf = () => THEMES.find(t => t.id === TBStore.get().settings.theme) || THEMES[0];
+	const applyTheme = () => {
+		const t = themeOf();
+		if (t.id === "albion") delete document.documentElement.dataset.theme;
+		else document.documentElement.dataset.theme = t.id;
+		document.querySelectorAll("meta[name=theme-color]").forEach(m => m.setAttribute("content", t.sw[0]));
+	};
+	const setTheme = (id) => {
+		TBStore.get().settings.theme = id;
+		TBStore.changed("settings");
+		applyTheme();
+	};
+	const siteFolder = async () => {
+		const info = await window.tbNative.siteInfo();
+		const m = TBUI.modal({
+			title: "5etools folder",
+			body: h("div", {style: {padding: "16px", width: "520px", lineHeight: "1.45"}},
+				h("p", {style: {marginTop: 0}}, info.custom ? "Beldora CB reads the wiki from a folder you chose:" : info.usingUpdated ? "Beldora CB uses the copy of 5etools installed by the updater." : "Beldora CB uses its built-in copy of 5etools."),
+				info.custom ? h("p", h("code", info.siteRoot)) : null,
+				h("p.muted", "Artwork goes in the images folder (see App Files). You can also point Beldora CB at another 5etools folder."),
+			),
+			footer: [
+				info.custom ? h("button.btn", {on: {click: () => { m.close(); window.tbNative.resetSite(); }}}, "Use the app's own copy") : null,
+				h("button.btn", {on: {click: () => m.close()}}, "Close"),
+				h("button.btn.primary", {on: {click: () => { m.close(); window.tbNative.changeSite(); }}}, "Choose folder…"),
+			],
+		});
+	};
+	const openSettings = () => {
+		const themes = h("div.set-themes");
+		const fillThemes = () => {
+			clear(themes);
+			THEMES.forEach(t => themes.appendChild(h("button.set-theme", {class: themeOf().id === t.id ? "on" : "", on: {click: () => { setTheme(t.id); fillThemes(); }}},
+				h("span.set-sw", ...t.sw.map(c => h("i", {style: {background: c}}))),
+				h("span.set-tn", h("b", t.name), h("small", t.desc)),
+				themeOf().id === t.id ? h("span.set-on", "✓") : null,
+			)));
+		};
+		fillThemes();
+		const m = TBUI.modal({
+			title: "Settings",
+			body: h("div.set-body",
+				h("div.set-h", "Theme"), themes,
+				isDesktop() ? h("div.set-h", "App") : null,
+				isDesktop() ? h("div.set-app",
+					h("button.btn", {title: "Which 5etools folder Beldora CB reads", on: {click: () => { m.close(); siteFolder(); }}}, "⚙ Site folder…"),
+					h("button.btn", {title: "Character saves, PDF exports, images and the 5etools updater", on: {click: () => { m.close(); setView("files"); }}}, "📁 App Files"),
+				) : null,
+			),
+			footer: [h("button.btn", {on: {click: () => m.close()}}, "Close")],
+		});
+	};
+	// endregion
+
 	const init = async () => {
 		await TBStore.load();
+		applyTheme();
 		document.querySelectorAll("#tb-nav button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
 		if (isMobile()) {
 			// Android: builder, Play, Store and encounters (no wiki or DM books)
@@ -577,25 +639,7 @@ globalThis.TBApp = (() => {
 		if (isMobile() || isPhone()) setView("characters");
 		// Crossing the phone width (web) switches layouts
 		window.addEventListener("resize", TBUI.debounce(() => { if (syncPhone()) setView(S.view); }, 250));
-		if (window.tbNative && !window.tbNative.isWeb) {
-			document.getElementById("tb-top-right").appendChild(h("button.btn.ghost.small", {title: "Which 5etools folder Beldora CB reads", on: {click: async () => {
-				const info = await window.tbNative.siteInfo();
-				const m = TBUI.modal({
-					title: "5etools folder",
-					body: h("div", {style: {padding: "16px", width: "520px", lineHeight: "1.45"}},
-						h("p", {style: {marginTop: 0}}, info.custom ? "Beldora CB reads the wiki from a folder you chose:" : info.usingUpdated ? "Beldora CB uses the copy of 5etools installed by the updater." : "Beldora CB uses its built-in copy of 5etools."),
-						info.custom ? h("p", h("code", info.siteRoot)) : null,
-						h("p.muted", "Artwork goes in the images folder (see App Files). You can also point Beldora CB at another 5etools folder."),
-					),
-					footer: [
-						info.custom ? h("button.btn", {on: {click: () => { m.close(); window.tbNative.resetSite(); }}}, "Use the app's own copy") : null,
-						h("button.btn", {on: {click: () => m.close()}}, "Close"),
-						h("button.btn.primary", {on: {click: () => { m.close(); window.tbNative.changeSite(); }}}, "Choose folder…"),
-					],
-				});
-			}}}, "⚙ Site folder"));
-			document.getElementById("tb-top-right").appendChild(h("button.btn.ghost.small", {id: "tb-files-btn", title: "Character saves, PDF exports, images and the 5etools updater", on: {click: () => setView("files")}}, "📁 App Files"));
-		}
+		document.getElementById("tb-top-right").appendChild(h("button.btn.ghost.small", {id: "tb-files-btn", title: isDesktop() ? "Theme, 5etools folder and App Files" : "Theme", on: {click: openSettings}}, "⚙ Settings"));
 		document.addEventListener("keydown", (e) => {
 			if (e.altKey && (e.key === "c" || e.key === "C")) { e.preventDefault(); if (S.view === "wiki") toggleClipMode(); }
 		});
@@ -612,6 +656,7 @@ globalThis.TBApp = (() => {
 		addClip, toggleClipMode, isClipMode: () => S.clipMode, clipTargetLabel, setClipTarget,
 		browseFor, openWiki, openCharTab, openTargetBook, openBook, newCharacterFromWiki, state: S,
 		clipTarget, clipChapter, setClipChapter, createBook, newBookFromWiki, renderBooks, isMobile, isPhone,
+		openSettings, setTheme, THEMES,
 	};
 })();
 
