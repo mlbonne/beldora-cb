@@ -84,15 +84,32 @@ copyDir(path.join(NM, "@fontsource", "alegreya-sans", "files"), path.join(OUT, "
 const manifest = {
 	name: "Beldora Character Builder",
 	short_name: "Beldora CB",
+	id: "beldora-cb",
 	start_url: target === "mobile" ? "index.html" : "tb-app.html",
+	scope: "./",
 	display: "standalone",
+	orientation: "any",
 	background_color: "#16130f",
 	theme_color: "#16130f",
-	icons: [{src: "__tb/icon.png", sizes: "256x256", type: "image/png"}],
+	icons: [
+		{src: "__tb/img/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any"},
+		{src: "__tb/img/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any"},
+		{src: "__tb/icon.png", sizes: "256x256", type: "image/png"},
+	],
 };
 fs.writeFileSync(path.join(OUT, "beldora.webmanifest"), JSON.stringify(manifest, null, "\t"));
+// Installable as an app: the manifest for Chrome/Android/Windows, the apple-* tags for iPad "Add to Home Screen"
 const appHtml = fs.readFileSync(path.join(OUT, "tb-app.html"), "utf8")
-	.replace("</head>", "\t<link rel=\"manifest\" href=\"beldora.webmanifest\">\n\t<meta name=\"theme-color\" content=\"#16130f\">\n</head>");
+	.replace("</head>", [
+		"\t<link rel=\"manifest\" href=\"beldora.webmanifest\">",
+		"\t<meta name=\"theme-color\" content=\"#16130f\">",
+		"\t<meta name=\"mobile-web-app-capable\" content=\"yes\">",
+		"\t<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">",
+		"\t<meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black-translucent\">",
+		"\t<meta name=\"apple-mobile-web-app-title\" content=\"Beldora CB\">",
+		"\t<link rel=\"apple-touch-icon\" href=\"__tb/img/icon-192.png\">",
+		"</head>",
+	].join("\n"));
 fs.writeFileSync(path.join(OUT, "tb-app.html"), appHtml);
 if (target === "mobile") {
 	// Capacitor opens index.html: the boot page starts an installed update, or the built-in tb-app.html

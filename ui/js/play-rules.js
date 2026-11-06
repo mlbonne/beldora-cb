@@ -874,7 +874,25 @@ globalThis.TBPlay = (() => {
 	// region Session gear: Play and Store work on a copy of the equipment and coins; End Session can write it back
 	const gearOf = (c) => stateOf(c).gear || c.equipment;
 	/** The character as the session sees it (its equipment is the session copy). */
-	const sessionChar = (c) => { const g = stateOf(c).gear; return g ? {...c, equipment: g} : c; };
+	const sessionChar = (c) => {
+		const P = stateOf(c);
+		const hb = (P.homebrew || []).filter(x => x.type !== "item");
+		if (!P.gear && !hb.length && !P.about) return c;
+		return {...c, equipment: P.gear || c.equipment, homebrew: [...(c.homebrew || []), ...hb], details: {...(c.details || {}), ...(P.about || {})}};
+	};
+	/** End of session: homebrew and About edits made during it are written to the character. */
+	const applySessionExtras = (c) => {
+		const P = stateOf(c);
+		const hb = (P.homebrew || []).filter(x => x.type !== "item");
+		if (hb.length) c.homebrew = [...(c.homebrew || []), ...hb];
+		if (P.about && Object.keys(P.about).length) {
+			const {portrait, ...rest} = P.about;
+			c.details = {...(c.details || {}), ...rest};
+			if (portrait) c.portrait = portrait;
+		}
+		delete P.homebrew;
+		delete P.about;
+	};
 	const beginGear = (c) => { stateOf(c).gear = JSON.parse(JSON.stringify(c.equipment || {items: [], cp: 0})); };
 	const dropGear = (c) => { delete stateOf(c).gear; };
 	const applyGear = (c) => {
@@ -913,7 +931,7 @@ globalThis.TBPlay = (() => {
 	// endregion
 
 	return {
-		gearOf, sessionChar, beginGear, dropGear, applyGear, gearChanges,
+		gearOf, sessionChar, beginGear, dropGear, applyGear, gearChanges, applySessionExtras,
 		stateOf, effective, formActionsOf, damageExtras, addEffect, endEffect, nextTurn, keyMatches, currentHp, log, roll, rollFor, d20For, setDiceProvider, physical, diceMode, shown, askOutcome, test, testMode, CONDITIONS, COND_FX, OUTCOME_LABEL,
 		resources, poolForFeature, remaining, spend, usesFromText,
 		slotsOf, pactOf, slotsLeft, pactLeft, castOptions, spellDice, isConc, economyOf, endConcentration,

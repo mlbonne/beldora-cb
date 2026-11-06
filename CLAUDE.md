@@ -5,8 +5,9 @@ It's a D&D 2024 companion app built on the open-source 5etools site.
 
 ## Current versions (2026-11-05)
 - **Desktop installer:** `Beldora-CB-Setup-1.7.1.exe` (package.json 1.7.1).
-- **Interface:** `ui/version.json` = `{"version": "1.7.1", "minApp": "1.5.0", "minAndroid": "1.7.0"}`, published to the in-app updater.
-- **Web:** 1.7.1, live at https://beldora-cb.beldora-cb.workers.dev (Cloudflare Worker `beldora-cb`).
+- **Interface:** `ui/version.json` = `{"version": "1.8.0", "minApp": "1.5.0", "minAndroid": "1.7.0"}`, published to the in-app updater on 2026-11-06 (desktop and Android get it).
+- **Web:** 1.8.0, live at https://beldora-cb.beldora-cb.workers.dev (Cloudflare Worker `beldora-cb`). Installable as an app (manifest with 192/512 icons, apple-* tags).
+- **Tablets:** the user runs the web app installed on a tablet in portrait. Tablets get the full app (phone layout only when the screen's short side < 600 px, the window < 520 px, the Android app, or `?phone`; `?full` forces full). Under 1350 px the Play sheet gets `.pl-tablet`: the three columns laid out at 980 px and scaled with CSS `zoom` (`fitSheet` in view-play.js); `.pl-touch` (coarse pointer) enlarges targets.
 - **Android APK:** 1.7.0, versionCode 6 (`mobile/android/app/build.gradle`). The user has it installed. The next APK needs versionCode 7 or higher.
 - **Pending:** confirm with the user that the Android in-app update to 1.7.1 (phone header fix) worked. It's the first real Android update.
 
@@ -19,6 +20,11 @@ It's a D&D 2024 companion app built on the open-source 5etools site.
 - **Exports (PDF):** booklet (Paged.js), cheat sheet, skill cards, character sheet. Desktop also makes a folded booklet (pdf-lib).
 - **Encounters:** CR/XP budgets (2024 DMG; 2014 multiplier optional), random encounters, d8 loot table (one GP option), XP per PC, extra monster actions, encounter PDF.
 - **Play (live sheet):**
+  - **Layout (1.8, Roll20-style):** top bar (Advantage/Normal/Disadvantage, who rolls, End session); header card (portrait + level badge, XP, Proficiency, Initiative, spellcasting, Inspiration) and HP card | Abilities (red shields) + Saving Throws; then Skills | tabbed centre menu | Defenses, Conditions, Senses, Proficiencies & Languages, Session XP, Roll log.
+  - **Centre menu tabs:** Actions (the old Actions card, turn bar, form, summons, slots, Active Effects) · Features & Traits (expand in place, Use buttons) · Equipment (session inventory) · Notes · About. `S.mainTab` holds the tab.
+  - **Notes:** each session opens a standalone book (`notesOf: charId`, `sessionDate`, chapters with genKey `session-notes` / `session-clips` / `session-homebrew`) and makes it the clip target (old target restored at End session). Quick add (TBPickers) and wiki clip mode both land in it. End session keeps it (dated) or drops it if empty; the character page shows these books in a collapsible **Notes** card.
+  - **Homebrew:** `P.homebrew` during the session (`sessionChar` merges it), `char.homebrew` after End session. Types: item (goes into session gear with `homebrew: true, desc`), feat, feature, action (`eco`), skill (`skill`), tool, language. hero-rules applies skill/tool/language grants and `featureList` lists feats/features/actions as kind "Homebrew".
+  - **About:** the builder's Details, edited into `P.about` (portrait too) and written by `TBPlay.applySessionExtras` at End session.
   - **Basics:** HP and temp HP, Hit Dice, rests, conditions, Exhaustion (applied to d20 tests and Speed), and the player's own bonuses on AC, Initiative, Speed and PB.
   - **Effects catalog** (play-effects.js): spells, features and actions apply their numbers, and an Active Effects block shows what's in force.
   - **Forms and summons:** forms show on the page; summons get scaled stat blocks.
@@ -105,7 +111,9 @@ It's a D&D 2024 companion app built on the open-source 5etools site.
   - Signed with `mobile/android/beldora-release.jks` + `keystore.properties`. **Never lose these.**
 - **Headless self-tests:** `TOMEBINDER_SELFTEST=<outdir> TOMEBINDER_<MODE>=1 BELDORA_HOME=<tmp>/home npx electron .`
   - Always set a throwaway `BELDORA_HOME`. From bash, stdin should come from /dev/null.
+  - **This machine (since 2026-11-05) has no Node.js on PATH.** Use the project's Electron as Node: `ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/electron.exe --check file.js`, and run self-tests with `node_modules/electron/dist/electron.exe .` instead of `npx electron .`.
   - **Modes:**
+    - `SHEET`: the 1.8 tabbed Play sheet: Features, Equipment, Notes (notes text, clip, every homebrew type), About, End session write-back, character-page Notes card, phone tabs.
     - `PLAY`: Play tab, Polymorph, Summon Beast, cheat-sheet plan.
     - `STORE`: gating, prices, pages, barter, buy/sell, End session write-back.
     - `DICE`: dice modes, smites, Sneak Attack, Tactical Mind, Concentration.

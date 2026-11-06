@@ -657,6 +657,13 @@ globalThis.TBRules = (() => {
 			const v = Number(char.abilities.base?.[a]);
 			base[a] = Number.isFinite(v) && v > 0 ? v : (method === "pointbuy" ? 8 : 10);
 		});
+		// Homebrew the player added (Play › Notes): skill, tool and language proficiencies count like any other
+		const homebrew = (char.homebrew || []).filter(x => x && x.name);
+		homebrew.forEach(x => {
+			if (x.type === "skill" && SKILL_LIST.includes(lc(x.skill || x.name))) G.skills.add(lc(x.skill || x.name));
+			else if (x.type === "tool") G.tools.add(lc(x.name));
+			else if (x.type === "language") G.languages.add(lc(x.name));
+		});
 		// Equipped items come first: some set or raise ability scores
 		const inv = char.equipment.items || [];
 		const items = inv.map(it => {
@@ -824,6 +831,7 @@ globalThis.TBRules = (() => {
 			attacks, items, cp: char.equipment.cp || 0,
 			details: char.details || {},
 			portrait: char.portrait || null,
+			homebrew,
 		};
 	};
 	// endregion
@@ -1059,6 +1067,13 @@ globalThis.TBRules = (() => {
 		if (d.speciesEnt) (d.speciesEnt.entries || []).filter(e => e && e.name).forEach(e => out.push({name: e.name, kind: "Species", group: d.species, entries: e.entries || [], key: `species:${refKey(d.speciesEnt)}`, ...activationOf(e.entries)}));
 		d.feats.forEach(f => out.push({name: f.ent.name, kind: "Feat", group: f.via, entries: f.ent.entries || [], key: `feat:${refKey(f.ent)}`, ...activationOf(f.ent.entries)}));
 		d.optfeatures.forEach(o => out.push({name: o.ent.name, kind: "Option", group: (o.ent.featureType || []).map(t => { try { return Parser.optFeatureTypeToFull(t); } catch (e) { return t; } }).join(", "), entries: o.ent.entries || [], key: `optfeature:${refKey(o.ent)}`, ...activationOf(o.ent.entries)}));
+		// Homebrew feats, features and actions (skills, tools and languages are proficiencies, not features)
+		(d.homebrew || []).filter(x => ["feat", "feature", "action"].includes(x.type)).forEach(x => {
+			const entries = String(x.desc || "").split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
+			const base = activationOf(entries);
+			const act = x.type === "action" ? ({action: "Action", bonus: "Bonus Action", reaction: "Reaction"}[x.eco] || base.act) : base.act;
+			out.push({name: x.name, kind: "Homebrew", group: x.type === "feat" ? "Homebrew feat" : x.type === "action" ? "Homebrew action" : "Homebrew trait", entries, key: `homebrew:${x.id}`, homebrew: true, ...base, act, uses: x.uses || base.uses});
+		});
 		return out;
 	};
 	// endregion

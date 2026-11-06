@@ -13,7 +13,7 @@ globalThis.TBViewPlay = (() => {
 	const D = () => TBData;
 	const P_ = () => TBPlay;
 	const E_ = () => TBEffects;
-	const S = {charId: null, session: false, actTab: "action", busy: false, again: false};
+	const S = {charId: null, session: false, actTab: "action", mainTab: "actions", featFilter: "All", open: new Set(), busy: false, again: false};
 	const sg = (n) => (n >= 0 ? `+${n}` : `${n}`);
 	const fmt = (n) => Number(n || 0).toLocaleString("en-US");
 	const lc = (s) => String(s ?? "").toLowerCase();
@@ -508,6 +508,9 @@ globalThis.TBViewPlay = (() => {
 			const n = Math.max(0, Number(inp.value) || 0);
 			if (add && n) { TBLevel.addXp(c, n); P_().log(c, `Session ended: +${fmt(n)} XP`); } else P_().log(c, "Session ended");
 			if (gearBox && gearBox.checked) { P_().applyGear(c); P_().log(c, `Character page updated: ${changes.lines.join("; ")}`); } else { if (changes.changed) P_().log(c, "Session inventory and coins discarded (character page unchanged)"); P_().dropGear(c); }
+			const keepExtras = !extrasBox || extrasBox.checked;
+			closeNotes(c, {homebrew: keepExtras ? hbList : []});
+			if (keepExtras) { if (extras.length) P_().log(c, `Character page updated: ${extras.join("; ")}`); P_().applySessionExtras(c); } else { delete P.homebrew; delete P.about; }
 			P.sessionXp = 0;
 			S.session = false;
 			S.charId = null;
@@ -522,6 +525,16 @@ globalThis.TBViewPlay = (() => {
 		const p = TBLevel.progress(c);
 		const changes = P_().gearChanges(c);
 		const gearBox = changes.changed ? h("input", {type: "checkbox", checked: true}) : null;
+		const hbList = (P.homebrew || []).slice();
+		const aboutKeys = Object.keys(P.about || {});
+		const extras = [
+			...hbList.filter(x => x.type !== "item").map(x => `homebrew ${HB_LABEL[x.type].toLowerCase()}: ${x.name}`),
+			aboutKeys.length ? `About: ${aboutKeys.map(k => (k === "portrait" ? "portrait" : k)).join(", ")}` : "",
+		].filter(Boolean);
+		const extrasBox = extras.length ? h("input", {type: "checkbox", checked: true}) : null;
+		const nb = notesBook(c);
+		const nbClips = nb ? clipsOf(nb).length : 0;
+		const nbText = nb ? htmlToText(noteItemOf(nb).html).trim() : "";
 		const m = TBUI.modal({
 			title: "End session",
 			body: h("div", {style: {padding: "14px 16px", width: "440px", display: "flex", flexDirection: "column", gap: "10px"}},
@@ -533,6 +546,13 @@ globalThis.TBViewPlay = (() => {
 					h("ul", ...changes.lines.map(l => h("li", l))),
 					h("div.muted", {style: {fontSize: "12.5px"}}, "Unticked, the character page keeps what it had before the session."),
 				) : h("div.muted", {style: {fontSize: "13px"}}, "No equipment or coin changes this session."),
+				extras.length ? h("div.pl-gearchg",
+					h("label.chk", extrasBox, h("b", "Save this session's homebrew and About changes to the character")),
+					h("ul", ...extras.map(l => h("li", l))),
+				) : null,
+				h("div.muted", {style: {fontSize: "13px"}}, nbText || nbClips || hbList.length
+					? `Session notes (${[nbText ? "your notes" : "", nbClips ? `${nbClips} clip${nbClips === 1 ? "" : "s"}` : "", hbList.length ? "homebrew" : ""].filter(Boolean).join(", ")}) go to the character page under Notes, dated ${dayLabel(nb?.sessionDate || dayIso())}.`
+					: "No session notes to keep."),
 			),
 			footer: [h("button.btn", {on: {click: () => { done = true; m.close(); }}}, "Keep playing"), h("button.btn", {on: {click: () => finish(false)}}, "End without XP"), h("button.btn.primary", {on: {click: () => finish(true)}}, "Add XP and end")],
 			onClose: () => { done = true; },
@@ -575,38 +595,53 @@ globalThis.TBViewPlay = (() => {
 		);
 	};
 
+	const DICE_MODES = [
+		{value: "app", label: "🎲 The app rolls", log: "The app rolls the dice"},
+		{value: "all", label: "🎲 I roll everything", log: "Rolling physical dice: the app asks for each result"},
+		{value: "some", label: "🎲 I roll (asked only when it matters)", log: "Rolling physical dice: the app asks only for rolls that change the sheet or trigger something"},
+	];
+	const longRest = async (c, d) => { if (await TBUI.confirm("Long rest", "Restore all HP, Hit Point Dice, spell slots and features, end active effects, and lower Exhaustion by 1?", {okLabel: "Long rest"})) { P_().longRest(c, d); save(c); } };
+
+	/** The strip above the sheet: Advantage for the next rolls, who rolls the dice, and the session. */
+	const topBar = (c) => {
+		const P = P_().stateOf(c);
+		const phys = h("select.pl-phys-sel", {title: "Who rolls: with \"asked only when it matters\", damage you deal and checks that change nothing here aren't asked for"}, ...DICE_MODES.map(o => h("option", {value: o.value, selected: o.value === (P.physical === "some" ? "some" : P.physical ? "all" : "app")}, o.label)));
+		phys.addEventListener("change", () => { P.physical = phys.value === "some" ? "some" : phys.value === "all"; P_().log(c, DICE_MODES.find(o => o.value === phys.value).log); save(c); });
+		return h("div.pl-topbar",
+			h("div.pl-seg", {title: "Applies to every d20 roll until you change it"}, ...[["adv", "Advantage"], ["normal", "Normal"], ["dis", "Disadvantage"]].map(([v, l]) => h("button", {class: P.adv === v ? `on ${v}` : "", on: {click: () => { P.adv = v; save(c); }}}, l))),
+			h("div.spacer"),
+			phys,
+			h("button.btn.small.danger", {title: "Finish the session: XP, equipment, notes, homebrew and About changes", on: {click: () => endSession(c)}}, "⏹ End session"),
+		);
+	};
+
+	/** Portrait, name, level and XP, with Proficiency, Initiative, Inspiration and spellcasting. */
 	const header = (c, d) => {
 		const P = P_().stateOf(c);
 		const initRoll = async () => { await P_().test(c, "Initiative", d.initiative, "init"); save(c); };
-		const DICE_MODES = [
-			{value: "app", label: "🎲 The app rolls the dice", log: "The app rolls the dice"},
-			{value: "all", label: "🎲 I roll my own dice (the app asks for every result)", log: "Rolling physical dice: the app asks for each result"},
-			{value: "some", label: "🎲 I roll my own dice (the app only asks for some rolls)", log: "Rolling physical dice: the app asks only for rolls that change the sheet or trigger something"},
-		];
-		const phys = h("select.pl-phys-sel", {title: "Who rolls: with \"some rolls\", damage you deal and checks that change nothing here aren't asked for"}, ...DICE_MODES.map(o => h("option", {value: o.value, selected: o.value === (P.physical === "some" ? "some" : P.physical ? "all" : "app")}, o.label)));
-		phys.addEventListener("change", () => { P.physical = phys.value === "some" ? "some" : phys.value === "all"; P_().log(c, DICE_MODES.find(o => o.value === phys.value).log); save(c); });
-		return h("div.pl-head",
-			h("div.grow",
+		const portrait = (P.about && P.about.portrait) || c.portrait;
+		const xp = TBLevel.progress(c);
+		return h("div.card.pl-card.pl-head",
+			h("div.pl-portrait", {title: "Change the portrait in the About tab"},
+				portrait ? h("img", {src: portrait}) : h("img.boar", {src: "__tb/img/boar.svg", alt: ""}),
+				h("span.pl-lvl", {title: `Level ${d.totalLevel}`}, String(d.totalLevel))),
+			h("div.pl-id",
 				h("div.pl-name", d.name),
-				h("div.pl-line", `Level ${d.totalLevel} · ${d.classes.map(x => `${x.subclass ? x.subclass + " " : ""}${x.name} ${x.level}`).join(" / ")}${d.species ? ` · ${d.species}` : ""}`),
-				h("div.pl-phys", phys),
+				h("div.pl-line", [d.species, d.background].filter(Boolean).join(" · ")),
+				h("div.pl-line", d.classes.map(x => `${x.subclass ? x.subclass + " " : ""}${x.name} ${x.level}`).join(" · ")),
+				h("div.pl-xp", {title: xp.ready ? "Ready to level up (Characters tab)" : ""}, `XP ${fmt(xp.xp)}${xp.to ? ` / ${fmt(xp.to)}` : ""}`, P.sessionXp ? h("span.muted", ` (+${fmt(P.sessionXp)} this session)`) : null, xp.ready ? h("span.pl-ready", " ▲ level up ready") : null),
 			),
-			adjBox(c, "Armor Class", "ac", d.natural.ac, d.ac, {notes: d.notes.ac}),
-			adjBox(c, "Initiative", "init", d.natural.initiative, d.initiative, {signedV: true, onRoll: initRoll}),
-			adjBox(c, "Speed", "speed", d.natural.speed, d.speed, {suffix: " ft.", notes: [...d.notes.speed, d.fly ? `fly ${d.fly} ft.` : ""].filter(Boolean)}),
-			adjBox(c, "Proficiency", "pb", d.natural.pb, d.pb, {signedV: true}),
-			spellBox(d),
-			h("div.pl-insp", {class: P.inspiration ? "on" : "", title: "Heroic Inspiration: reroll any die (click to toggle)", on: {click: () => { P.inspiration = !P.inspiration; P_().log(c, P.inspiration ? "Gained Heroic Inspiration" : "Heroic Inspiration removed"); save(c); }}}, h("div.v", "★"), h("div.l", "Heroic Inspiration")),
-			h("div.pl-rest",
-				h("button.btn", {on: {click: () => shortRestModal(c, d)}}, "☾ Short rest"),
-				h("button.btn", {on: {click: async () => { if (await TBUI.confirm("Long rest", "Restore all HP, Hit Point Dice, spell slots and features, end active effects, and lower Exhaustion by 1?", {okLabel: "Long rest"})) { P_().longRest(c, d); save(c); } }}}, "☀ Long rest"),
-				h("button.btn.danger", {title: "Finish the session and add its XP to the character", on: {click: () => endSession(c)}}, "⏹ End session"),
+			h("div.pl-headstats",
+				adjBox(c, "Proficiency", "pb", d.natural.pb, d.pb, {signedV: true}),
+				adjBox(c, "Initiative", "init", d.natural.initiative, d.initiative, {signedV: true, onRoll: initRoll}),
+				d.spellcasting || (d.spellSources || []).length ? spellBox(d) : null,
+				h("button.pl-insp", {class: P.inspiration ? "on" : "", title: "Heroic Inspiration: reroll any die (click to toggle)", on: {click: () => { P.inspiration = !P.inspiration; P_().log(c, P.inspiration ? "Gained Heroic Inspiration" : "Heroic Inspiration removed"); save(c); }}}, h("span.v", "★"), h("span.l", "Inspiration")),
 			),
 		);
 	};
 
 	// region Phone layout
-	const PHONE_TABS = [["act", "Act"], ["spells", "Spells"], ["stats", "Stats"], ["gear", "Gear"], ["log", "Log"]];
+	const PHONE_TABS = [["act", "Act"], ["spells", "Spells"], ["stats", "Stats"], ["traits", "Traits"], ["gear", "Gear"], ["notes", "Notes"], ["about", "About"], ["log", "Log"]];
 	const goTab = (t) => { S.mTab = t; S.mTop = true; render(); };
 	/** "⋯" on the strip: who rolls, Heroic Inspiration, rests, End session. */
 	const phoneMenu = async (c, d) => {
@@ -665,19 +700,20 @@ globalThis.TBViewPlay = (() => {
 	};
 	/** The phone's Stats tab: the player's bonuses on AC, Initiative, Speed and Proficiency, and spellcasting. */
 	const phoneStats = (c, d) => h("div.pm-stats",
-		adjBox(c, "Armor Class", "ac", d.natural.ac, d.ac, {notes: d.notes.ac}),
 		adjBox(c, "Initiative", "init", d.natural.initiative, d.initiative, {signedV: true, onRoll: async () => { await P_().test(c, "Initiative", d.initiative, "init"); save(c); }}),
-		adjBox(c, "Speed", "speed", d.natural.speed, d.speed, {suffix: " ft.", notes: d.notes.speed}),
 		adjBox(c, "Proficiency", "pb", d.natural.pb, d.pb, {signedV: true}),
-		spellBox(d),
+		d.spellcasting || (d.spellSources || []).length ? spellBox(d) : null,
 	);
 	const phonePage = async (c, d, formMon) => {
 		const tab = S.mTab || "act";
 		const content = {
 			act: [formCard(c, d, formMon), companionsCard(c), await actionsCard(c, d, {filter: "nospells", stacked: true}), effectsCard(c, d)],
 			spells: [resourcesCard(c, d), await actionsCard(c, d, {filter: "spells", stacked: true})],
-			stats: [hpCard(c, d), phoneStats(c, d), abilitiesCard(c, d), conditionsCard(c)],
+			stats: [hpCard(c, d), phoneStats(c, d), abilitiesCard(c, d), skillsCard(c, d), conditionsCard(c), defensesCard(c, d), sensesCard(c, d), profsCard(c, d)],
+			traits: [featuresTab(c, d)],
 			gear: [inventoryCard(c, d), sessionCard(c)],
+			notes: [notesTab(c)],
+			about: [aboutTab(c, d)],
 			log: [logCard(c, d)],
 		}[tab];
 		const body = h("div.pl-body.pm-body", h("div.pl-col", ...content.filter(Boolean)));
@@ -762,18 +798,24 @@ globalThis.TBViewPlay = (() => {
 				save(c);
 			}),
 		) : null;
-		return h("div.card.pl-card", h("div.card-h", h("h3", "Hit Points")), h("div.card-b",
+		return h("div.card.pl-card.pl-hpcard", h("div.card-h", h("h3", "Hit Points"), pct <= 50 && cur > 0 ? h("span.pl-bloodied", "Bloodied") : null, h("div.spacer"),
+			h("button.btn.small", {title: "Spend Hit Point Dice and recover short-rest features", on: {click: () => shortRestModal(c, d)}}, "☾ Short rest"),
+			h("button.btn.small", {on: {click: () => longRest(c, d)}}, "☀ Long rest")), h("div.card-b",
 			h("div.pl-hp",
-				h("div.big", h("b", String(cur)), h("span", ` / ${d.hp}`), P.temp ? h("span.temp", ` +${P.temp} temp`) : null),
-				d.notes.hp.length ? h("div.muted", {style: {fontSize: "12px"}}, d.notes.hp.join(" · ")) : null,
-				h("div.bar", h("div.fill", {style: {width: `${pct}%`}, class: pct <= 50 ? "bloodied" : ""}), P.temp ? h("div.tempbar", {style: {width: `${Math.min(100, P.temp / d.hp * 100)}%`}}) : null),
-				pct <= 50 && cur > 0 ? h("div.muted", {style: {fontSize: "12.5px"}}, "Bloodied") : null,
+				h("div.pl-hpbox",
+					h("div.pl-hpnums", h("b", String(cur)), h("i", "/"), h("span", String(d.hp))),
+					h("div.bar", h("div.fill", {style: {width: `${pct}%`}, class: pct <= 50 ? "bloodied" : ""}), P.temp ? h("div.tempbar", {style: {width: `${Math.min(100, P.temp / d.hp * 100)}%`}}) : null),
+					h("div.pl-hplab", h("span", "Current"), h("span", "Max")),
+				),
+				h("div.pl-tempbox", {class: P.temp ? "on" : ""}, h("b", P.temp ? String(P.temp) : "--"), h("span", "Temp")),
 			),
-			h("div.row", {style: {flexWrap: "wrap", marginTop: "8px"}},
-				amt, typeSel,
-				h("button.btn.small.danger", {on: {click: takeDamage}}, "− Damage"),
-				h("button.btn.small", {on: {click: () => { P_().heal(c, d, val()); save(c); }}}, "+ Heal"),
-				h("button.btn.small", {on: {click: () => { P_().addTemp(c, val()); save(c); }}}, "+ Temp HP"),
+			d.notes.hp.length ? h("div.muted", {style: {fontSize: "12px", marginTop: "4px"}}, d.notes.hp.join(" · ")) : null,
+			h("div.row.pl-hpctl",
+				h("button.btn.small.danger", {title: "Take this much damage (resistances and reactions applied)", on: {click: takeDamage}}, "♥ Damage"),
+				amt,
+				h("button.btn.small.pl-heal", {on: {click: () => { P_().heal(c, d, val()); save(c); }}}, "✚ Heal"),
+				h("button.btn.small", {on: {click: () => { P_().addTemp(c, val()); save(c); }}}, "+ Temp"),
+				typeSel,
 			),
 			reactChecks.length ? h("div.row", {style: {flexWrap: "wrap", marginTop: "4px", fontSize: "12.5px"}}, h("span.muted", "Reactions:"), ...reactChecks.map(({r, i}) => h("label.chk", i, r.label))) : null,
 			d.resist.length ? h("div.muted", {style: {fontSize: "12px", marginTop: "4px"}}, `Resistant to ${d.resist.join(", ")}`) : null,
@@ -794,30 +836,51 @@ globalThis.TBViewPlay = (() => {
 			return i;
 		};
 		const formAbil = P.form ? new Set(P.form.via === "Wild Shape" || P.form.keepMental ? ["str", "dex", "con"] : R().ABILS) : new Set();
-		const abil = h("div.pl-abils", ...R().ABILS.map(a => h("div.pl-abil", {class: formAbil.has(a) ? "form" : ""},
-			h("div.n", a.toUpperCase()),
-			h("div.m", {title: "Ability check", on: {click: async () => { await P_().test(c, `${R().ABIL_NAMES[a]} check`, d.mods[a], `check:${a}`, {sit: P.sit[`chk:${a}`] || ""}); save(c); }}}, sg(d.mods[a])),
-			h("div.s", String(d.scores[a])),
-			h("div.sv", {class: d.saves[a].prof ? "prof" : "", title: "Saving throw", on: {click: async () => { await P_().test(c, `${R().ABIL_NAMES[a]} save`, d.saves[a].bonus, `save:${a}`, {sit: P.sit[`save:${a}`] || P.sit.save || ""}); save(c); }}}, `Save ${sg(d.saves[a].bonus)}`),
+		const check = (a) => async () => { await P_().test(c, `${R().ABIL_NAMES[a]} check`, d.mods[a], `check:${a}`, {sit: P.sit[`chk:${a}`] || ""}); save(c); };
+		const saveRoll = (a) => async () => { await P_().test(c, `${R().ABIL_NAMES[a]} save`, d.saves[a].bonus, `save:${a}`, {sit: P.sit[`save:${a}`] || P.sit.save || ""}); save(c); };
+		const abil = h("div.pl-abils", ...R().ABILS.map(a => h("button.pl-abil", {class: formAbil.has(a) ? "form" : "", title: `${R().ABIL_NAMES[a]} check (click to roll)`, on: {click: check(a)}},
+			h("span.m", sg(d.mods[a])),
+			h("span.n", R().ABIL_NAMES[a]),
+			h("span.s", String(d.scores[a])),
 		)));
-		const skills = h("div.pl-skills", ...R().SKILL_LIST.map(s => {
+		const saves = h("div.pl-saves", ...R().ABILS.map(a => h("button.pl-save", {class: d.saves[a].prof ? "prof" : "", title: `${R().ABIL_NAMES[a]} saving throw${d.saves[a].prof ? " (proficient)" : ""}: click to roll`, on: {click: saveRoll(a)}},
+			h("span.v", sg(d.saves[a].bonus)),
+			h("span.n", a.toUpperCase(), h("i.dot")),
+		)));
+		return h("div.card.pl-card.pl-abilcard",
+			h("div.card-h", h("h3", "Abilities"), P.form ? h("span.muted", {style: {fontSize: "12px"}}, `· highlighted scores come from the ${P.form.name} form`) : null),
+			h("div.card-b", abil),
+			h("div.card-h.pl-subh", h("h3", "Saving Throws"), h("div.spacer"), h("span.muted", {style: {fontSize: "12px"}}, "All saves"), sitIn("save", "±")),
+			h("div.card-b", saves),
+		);
+	};
+
+	/** Skills: ability, proficiency (● proficient, ◆ expertise), the bonus to click, and a box for situational bonuses. */
+	const skillsCard = (c, d) => {
+		const P = P_().stateOf(c);
+		const sitIn = (key) => {
+			const i = h("input.pl-sit", {type: "text", placeholder: "±", value: P.sit[key] || "", title: "Situational bonus for this roll: +2, -1, 1d4…"});
+			i.addEventListener("change", () => { const v = i.value.trim(); if (v) P.sit[key] = v; else delete P.sit[key]; TBStore.changed("char"); });
+			return i;
+		};
+		const rows = R().SKILL_LIST.map(s => {
 			const k = d.skills[s];
 			const boosts = P.effects.filter(ef => Object.keys(ef.mods?.dice || {}).some(key => P_().keyMatches(key, `check:${k.ability}:${s}`))).map(ef => ef.name);
-			return h("div.pl-skill",
-				h("span.dot", {class: k.exp ? "exp" : k.prof ? "prof" : ""}),
-				h("span.grow.nm", {on: {click: async () => { await P_().test(c, R().titleCase(s), k.bonus, `check:${k.ability}:${s}`, {sit: P.sit[`skill:${s}`] || ""}); save(c); }}}, R().titleCase(s), h("span.muted", ` ${k.ability.toUpperCase()}`), boosts.length ? h("span.pl-boost", ` +${boosts.join(", ")}`) : null),
-				h("b", sg(k.bonus)),
+			const roll = async () => { await P_().test(c, R().titleCase(s), k.bonus, `check:${k.ability}:${s}`, {sit: P.sit[`skill:${s}`] || ""}); save(c); };
+			return h("div.pl-skill", {class: k.exp ? "exp" : k.prof ? "prof" : ""},
+				h("span.grow.nm", {title: "Click to roll", on: {click: roll}}, R().titleCase(s), boosts.length ? h("span.pl-boost", ` +${boosts.join(", ")}`) : null),
+				h("span.ab", k.ability.toUpperCase()),
+				h("span.dot", {class: k.exp ? "exp" : k.prof ? "prof" : "", title: k.exp ? "Expertise" : k.prof ? "Proficient" : "Not proficient"}),
+				h("button.bon", {title: "Click to roll", on: {click: roll}}, sg(k.bonus)),
 				sitIn(`skill:${s}`),
 			);
-		}));
-		const advSel = h("div.pl-adv", ...[["dis", "Disadvantage"], ["normal", "Normal"], ["adv", "Advantage"]].map(([v, l]) => h("span.chip", {class: P.adv === v ? "on" : "", on: {click: () => { P.adv = v; save(c); }}}, l)));
-		return h("div.card.pl-card", h("div.card-h", h("h3", "Abilities & Skills"), h("div.spacer"), advSel), h("div.card-b",
-			abil,
-			P.form ? h("div.muted", {style: {fontSize: "12.5px", marginTop: "4px"}}, `Highlighted scores come from the ${P.form.name} form.`) : null,
-			h("div.row", {style: {margin: "6px 0", fontSize: "12.5px"}}, h("span.muted.grow", "Click a modifier, save or skill to roll; active effects (Bless, Guidance…) and conditions are applied for you. The small box adds anything else."), h("span.muted", "All saves:"), sitIn("save", "±")),
-			skills,
-			h("div.pl-sub", `Passive Perception ${d.passive.perception} · Insight ${d.passive.insight} · Investigation ${d.passive.investigation}`),
-		));
+		});
+		return h("div.card.pl-card.pl-skillcard", h("div.card-h", h("h3", "Skills")),
+			h("div.card-b",
+				h("div.pl-skill.pl-skillhead", h("span.grow", "Skill"), h("span.ab", "Mod"), h("span.dot.none", "Prof"), h("span.bon", "Bonus"), h("span.pl-sit", "±")),
+				h("div.pl-skills", ...rows),
+				h("div.muted", {style: {fontSize: "12px", marginTop: "8px"}}, "Click a skill to roll. Active effects (Bless, Guidance…) and conditions are applied for you; the ± box adds anything else."),
+			));
 	};
 
 	const conditionsCard = (c) => {
@@ -829,10 +892,39 @@ globalThis.TBViewPlay = (() => {
 				h("button.btn.small", {on: {click: () => { P.exhaustion = Math.max(0, P.exhaustion - 1); save(c); }}}, "−"),
 				h("b", String(P.exhaustion)),
 				h("button.btn.small", {on: {click: () => { P.exhaustion = Math.min(6, P.exhaustion + 1); save(c); }}}, "+"),
-				h("span.muted", {style: {fontSize: "12.5px"}}, P.exhaustion ? `Applied: −${2 * P.exhaustion} on d20 tests, Speed −${5 * P.exhaustion} ft.${P.exhaustion >= 6 ? " — death" : ""}` : "Each level: −2 to d20 tests, −5 ft. Speed (applied for you)"),
+				h("span.muted.pl-exh-note", {style: {fontSize: "12.5px"}}, P.exhaustion ? `Applied: −${2 * P.exhaustion} on d20 tests, Speed −${5 * P.exhaustion} ft.${P.exhaustion >= 6 ? " — death" : ""}` : "Each level: −2 to d20 tests, −5 ft. Speed (applied for you)"),
 			),
 		));
 	};
+
+	const kvRow = (k, v) => (v && (!Array.isArray(v) || v.length) ? h("div.pl-kv", h("span.k", k), h("span.v", Array.isArray(v) ? v.join(", ") : v)) : null);
+
+	/** Armor Class and Speed (each with the player's own bonus), resistances and immunities. */
+	const defensesCard = (c, d) => {
+		const speeds = [d.fly ? `Fly ${d.fly} ft.` : "", ...(d.formSpeeds || [])].filter(Boolean);
+		const rows = [kvRow("Resistance", d.resist), kvRow("Immunity", d.immune), kvRow("Condition immunity", d.condImmune)].filter(Boolean);
+		return h("div.card.pl-card.pl-defcard", h("div.card-h", h("h3", "Defenses")), h("div.card-b",
+			h("div.pl-defstats",
+				h("div.pl-shield", adjBox(c, "Armor Class", "ac", d.natural.ac, d.ac, {notes: d.notes.ac})),
+				adjBox(c, "Speed", "speed", d.natural.speed, d.speed, {suffix: " ft.", notes: d.notes.speed}),
+			),
+			speeds.length ? kvRow("Other speeds", speeds) : null,
+			...(rows.length ? rows : [h("div.muted", {style: {fontSize: "12.5px"}}, "No resistances or immunities.")]),
+		));
+	};
+
+	const sensesCard = (c, d) => h("div.card.pl-card", h("div.card-h", h("h3", "Senses")), h("div.card-b",
+		h("div.pl-kvh", "Passive"),
+		kvRow("Perception", String(d.passive.perception)),
+		kvRow("Insight", String(d.passive.insight)),
+		kvRow("Investigation", String(d.passive.investigation)),
+		d.darkvision ? h("div.pl-kvh", "Other senses") : null,
+		d.darkvision ? kvRow("Darkvision", `${d.darkvision} ft.`) : null,
+	));
+
+	const profsCard = (c, d) => h("div.card.pl-card", h("div.card-h", h("h3", "Proficiencies & Languages")), h("div.card-b",
+		kvRow("Weapons", d.weaponProf), kvRow("Mastery", d.masteries), kvRow("Armor", d.armorProf), kvRow("Tools", d.tools), kvRow("Languages", d.languages),
+	));
 
 	const turnBar = (c) => {
 		const T = P_().stateOf(c).turn;
@@ -1039,7 +1131,7 @@ globalThis.TBViewPlay = (() => {
 			const inv = P_().gearOf(c).items[ix];
 			const kind = it.equipKind;
 			return h("div.pl-item", {class: it.equipped && kind ? "eq" : ""},
-				h("span.grow", h("span.nm", {on: {click: () => it.ent && textModal(it.name, it.ent.entries)}}, it.name, it.notes ? h("span.muted", ` (${it.notes})`) : null), it.ent?.rarity && it.ent.rarity !== "none" ? h("span.muted", ` · ${it.ent.rarity}`) : null),
+				h("span.grow", h("span.nm", {on: {click: () => (it.ent ? textModal(it.name, it.ent.entries) : it.desc ? textModal(it.name, it.desc.split(/\n{2,}/)) : null)}}, it.name, it.notes ? h("span.muted", ` (${it.notes})`) : null), it.homebrew ? h("span.kindtag.homebrew", {style: {marginLeft: "6px"}}, "Homebrew") : null, it.ent?.rarity && it.ent.rarity !== "none" ? h("span.muted", ` · ${it.ent.rarity}`) : null),
 				kind ? h("label.chk", h("input", {type: "checkbox", checked: !!inv.equipped, on: {change: (e) => { inv.equipped = e.target.checked; P_().log(c, `${e.target.checked ? (kind === "attuned" ? "Attuned" : kind === "worn" ? "Put on" : "Wielded") : "Unequipped"} ${it.name}`); save(c, {derived: true}); }}}), kind) : null,
 				h("button.btn.ghost.small", {on: {click: () => { inv.qty = Math.max(0, (inv.qty || 1) - 1); if (!inv.qty) P_().gearOf(c).items.splice(ix, 1); save(c, {derived: true}); }}}, "−"),
 				h("b", String(inv.qty || 1)),
@@ -1089,7 +1181,348 @@ globalThis.TBViewPlay = (() => {
 	};
 	// endregion
 
+	// region Centre menu: Actions · Features & Traits · Equipment · Notes · About
+	const MAIN_TABS = [["actions", "Actions"], ["features", "Features & Traits"], ["equipment", "Equipment"], ["notes", "Notes"], ["about", "About"]];
+	const esc = (s) => TBBook.esc(s);
+	const entriesHtml = (entries) => TBSan.clean(Renderer.get().setFirstSection(true).render({type: "entries", entries: entries || []}));
+	/** A row that expands in place (no jump): header always shown, the body built on first open. */
+	const expander = (id, head, bodyFn, {cls = ""} = {}) => {
+		const el = h("div.pl-xp-row", {class: cls});
+		const body = h("div.pl-xp-b");
+		const fill = (open) => {
+			el.classList.toggle("open", open);
+			clear(body);
+			if (open) bodyFn(body);
+		};
+		el.appendChild(h("div.pl-xp-h", {on: {click: (e) => {
+			if (e.target.closest("button, input, select, a")) return;
+			const open = !S.open.has(id);
+			open ? S.open.add(id) : S.open.delete(id);
+			fill(open);
+		}}}, ...head));
+		el.appendChild(body);
+		fill(S.open.has(id));
+		return el;
+	};
+
+	/** Every feature and trait, with what it costs to use; usable ones get a Use button. */
+	const FEAT_KINDS = ["All", "Class", "Subclass", "Species", "Feat", "Option", "Homebrew"];
+	const featuresTab = (c, d) => {
+		const all = R().featureList(d);
+		const kinds = FEAT_KINDS.filter(k => k === "All" || all.some(f => f.kind === k));
+		if (!kinds.includes(S.featFilter)) S.featFilter = "All";
+		const list = all.filter(f => S.featFilter === "All" || f.kind === S.featFilter);
+		const rows = list.map(f => {
+			const res = P_().poolForFeature(d, f);
+			const usable = f.act !== "Passive" || f.uses || E_().handlerFor({feature: f});
+			return expander(`feat:${f.kind}:${f.name}:${f.level || ""}`, [
+				h("span.kindtag", {class: f.kind.toLowerCase()}, f.kind === "Class" || f.kind === "Subclass" ? `${f.kind} ${f.level}` : f.kind),
+				h("span.grow", h("b", f.name), h("span.muted", ` · ${f.group}`), h("div.pl-xp-sum", res ? `${P_().remaining(c, res)}/${res.max} ${res.name}` : summary(f.entries, 120))),
+				f.act !== "Passive" ? h("span.acttag", f.act) : null,
+				usable ? h("button.btn.small", {class: !res || P_().remaining(c, res) ? "primary" : "", disabled: res && !P_().remaining(c, res), on: {click: () => useFeature(c, d, f)}}, "Use") : null,
+			], (b) => { b.innerHTML = entriesHtml(f.entries); b.classList.add("hfeat-b"); });
+		});
+		return h("div.card.pl-card", h("div.card-h", h("h3", "Features & Traits"), h("div.spacer"), h("span.muted", String(list.length))),
+			h("div.pl-filter", ...kinds.map(k => h("span.chip", {class: S.featFilter === k ? "on" : "", on: {click: () => { S.featFilter = k; render(); }}}, k))),
+			h("div.card-b", ...(rows.length ? rows : [h("div.pick-empty", "Nothing here.")])));
+	};
+
+	// region Notes: a book opened for the session (wiki clips land in it), plus homebrew
+	const NOTE_KEY = "session-notes";
+	const CLIP_KEY = "session-clips";
+	const HB_KEY = "session-homebrew";
+	const dayIso = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
+	const dayLabel = (iso) => { try { return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", {weekday: "short", day: "numeric", month: "long", year: "numeric"}); } catch (e) { return iso; } };
+	const textToHtml = (txt) => String(txt || "").split(/\n{2,}/).map(p => p.trim()).filter(Boolean).map(p => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+	const htmlToText = (html) => {
+		const el = document.createElement("div");
+		el.innerHTML = String(html || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>\s*<p>/gi, "\n\n");
+		return el.textContent;
+	};
+	/** The session's notes book (made when the session starts; it becomes a character Note when it ends). */
+	const notesBook = (c, {create = false} = {}) => {
+		const P = P_().stateOf(c);
+		let b = P.notesBookId ? TBStore.book(P.notesBookId) : null;
+		if (!b && create) {
+			const date = dayIso();
+			b = {
+				id: TBBook.uid(), ownerCharId: null, notesOf: c.id, sessionDate: date,
+				title: `${c.name || "Character"}: session notes`, subtitle: dayLabel(date), kicker: "Session Notes", byline: "",
+				chapters: [{id: TBBook.uid(), genKey: NOTE_KEY, title: "Notes", items: [{id: TBBook.uid(), kind: "note", title: "Session notes", html: ""}]}, {id: TBBook.uid(), genKey: CLIP_KEY, title: "From the wiki", items: []}],
+				hidden: [], createdAt: Date.now(),
+			};
+			b.clipChapterId = b.chapters[1].id;
+			TBStore.get().books.push(b);
+			P.notesBookId = b.id;
+			TBStore.changed("book");
+		}
+		return b || null;
+	};
+	const noteItemOf = (b) => {
+		let ch = b.chapters.find(x => x.genKey === NOTE_KEY);
+		if (!ch) { ch = {id: TBBook.uid(), genKey: NOTE_KEY, title: "Notes", items: []}; b.chapters.unshift(ch); }
+		let it = ch.items.find(i => i.kind === "note");
+		if (!it) { it = {id: TBBook.uid(), kind: "note", title: "Session notes", html: ""}; ch.items.unshift(it); }
+		return it;
+	};
+	const clipsOf = (b) => b.chapters.filter(x => x.genKey !== NOTE_KEY && x.genKey !== HB_KEY).flatMap(ch => ch.items.filter(i => i.kind === "clip").map(i => ({ch, i})));
+	const clipChapterOf = (b) => {
+		let ch = b.chapters.find(x => x.genKey === CLIP_KEY);
+		if (!ch) { ch = {id: TBBook.uid(), genKey: CLIP_KEY, title: "From the wiki", items: []}; b.chapters.push(ch); }
+		return ch;
+	};
+	/** Session start: the notes book becomes where wiki clips go (the previous choice comes back at the end). */
+	const openNotes = (c) => {
+		const P = P_().stateOf(c);
+		const b = notesBook(c, {create: true});
+		const st = TBStore.get();
+		if (st.settings.clipTarget !== b.id) { P.prevClipTarget = st.settings.clipTarget || null; st.settings.clipTarget = b.id; TBStore.changed("settings"); }
+		return b;
+	};
+	/** Session end: homebrew goes in as a chapter, an empty book is dropped, and clipping goes back where it was. */
+	const closeNotes = (c, {homebrew = []} = {}) => {
+		const P = P_().stateOf(c);
+		const b = notesBook(c);
+		const st = TBStore.get();
+		if (b) {
+			if (homebrew.length) b.chapters.push({id: TBBook.uid(), genKey: HB_KEY, title: "Homebrew", items: [{id: TBBook.uid(), kind: "note", title: "Homebrew added this session", html: homebrew.map(x => `<p><b>${esc(x.name)}</b> <i>(${esc(HB_LABEL[x.type] || x.type)})</i>${x.desc ? `<br>${esc(x.desc).replace(/\n/g, "<br>")}` : ""}</p>`).join("")}]});
+			const empty = !htmlToText(noteItemOf(b).html).trim() && !clipsOf(b).length && !homebrew.length;
+			if (empty) st.books = st.books.filter(x => x.id !== b.id);
+			else { b.endedAt = Date.now(); b.updatedAt = Date.now(); }
+			if (st.settings.clipTarget === b.id) st.settings.clipTarget = P.prevClipTarget && (TBStore.char(P.prevClipTarget) || TBStore.book(P.prevClipTarget)) ? P.prevClipTarget : null;
+			TBStore.changed("book");
+		}
+		delete P.notesBookId;
+		delete P.prevClipTarget;
+	};
+
+	/** Quick add: search 5etools and put the entry in the notes book (as a clip, like the wiki's clip mode). */
+	const QUICK = [
+		{label: "Spell", prop: "spell", load: () => D().loadSpells()},
+		{label: "Item", prop: "item", load: async () => (await R().loadItems()).all.filter(i => i.name)},
+		{label: "Feat", prop: "feat", load: () => D().loadFeats()},
+		{label: "Creature", prop: "monster", load: async () => (await P_().allMonsters()).list},
+		{label: "Condition or disease", prop: "condition", load: () => D().loadConditions()},
+		{label: "Action", prop: "action", load: () => D().loadActions()},
+	];
+	const entHtml = (prop, e) => {
+		try {
+			if (prop === "monster") return `<table class="ve-w-100 ve-stats tb-stats">${Renderer.monster.getCompactRenderedString(e, {isCompact: false, isShowScalers: false})}</table>`;
+			if (Renderer[prop]?.getCompactRenderedString) return `<table class="ve-w-100 ve-stats">${Renderer[prop].getCompactRenderedString(e)}</table>`;
+		} catch (x) { /* fall through */ }
+		return `<h3>${esc(e.name)}</h3>${Renderer.get().setFirstSection(true).render({type: "entries", entries: e.entries || []})}`;
+	};
+	const quickAdd = async (c) => {
+		const kind = await menu("Add to the session notes from the wiki", QUICK.map(q => ({value: q.prop, label: q.label})));
+		if (!kind) return;
+		const q = QUICK.find(x => x.prop === kind);
+		const b = notesBook(c, {create: true});
+		let added = 0;
+		TBPickers.open({
+			title: `Add a ${q.label.toLowerCase()} to the notes`,
+			prop: q.prop,
+			multi: true,
+			legacyDefault: q.prop === "monster",
+			load: async () => (await q.load()).filter(e => e && e.name),
+			renderPreview: (e) => entHtml(q.prop, e),
+			onPick: (e) => {
+				clipChapterOf(b).items.push({id: TBBook.uid(), kind: "clip", title: e.name, html: TBSan.clean(entHtml(q.prop, e)), src: {label: `${q.label} · ${D().sourceShort ? D().sourceShort(e.source) : e.source}`}, clipKind: "Popup", addedAt: Date.now()});
+				b.updatedAt = Date.now();
+				added++;
+				TBStore.changed("book");
+				TBUI.toast(`Added “${e.name}” to the session notes`);
+			},
+			onClose: () => { if (added) render(); },
+		});
+	};
+
+	const HB_TYPES = [["item", "Item (goes in the inventory)"], ["feat", "Feat"], ["feature", "Feature or trait"], ["action", "Action, Bonus Action or Reaction"], ["skill", "Skill proficiency"], ["tool", "Tool proficiency"], ["language", "Language"]];
+	const HB_LABEL = {item: "Item", feat: "Feat", feature: "Feature or trait", action: "Action", skill: "Skill proficiency", tool: "Tool proficiency", language: "Language"};
+	/** Make something up: an item for the inventory, or a feat, trait, action or proficiency for the sheet. */
+	const homebrewModal = (c) => {
+		const P = P_().stateOf(c);
+		const typeSel = h("select", ...HB_TYPES.map(([v, l]) => h("option", {value: v}, l)));
+		const name = h("input", {type: "text", placeholder: "Name"});
+		const skillSel = h("select", ...R().SKILL_LIST.map(s => h("option", {value: s}, R().titleCase(s))));
+		const ecoSel = h("select", h("option", {value: "action"}, "Action"), h("option", {value: "bonus"}, "Bonus Action"), h("option", {value: "reaction"}, "Reaction"), h("option", {value: "free"}, "No action (free)"));
+		const qty = h("input", {type: "number", min: 1, value: 1, style: {width: "80px"}});
+		const uses = h("input", {type: "text", placeholder: "e.g. 1 / Long Rest (optional)"});
+		const desc = h("textarea", {rows: 6, placeholder: "What it is and what it does. Write it like the book would: \"Once per Short Rest, you can…\""});
+		const field = (label, el) => h("label.field", h("span", label), el);
+		const fName = field("Name", name);
+		const fSkill = field("Skill", skillSel);
+		const fEco = field("Takes", ecoSel);
+		const fQty = field("Quantity", qty);
+		const fUses = field("Uses", uses);
+		const fDesc = field("Description", desc);
+		const sync = () => {
+			const t = typeSel.value;
+			fName.style.display = t === "skill" ? "none" : "";
+			fSkill.style.display = t === "skill" ? "" : "none";
+			fEco.style.display = t === "action" ? "" : "none";
+			fQty.style.display = t === "item" ? "" : "none";
+			fUses.style.display = ["feat", "feature", "action"].includes(t) ? "" : "none";
+			name.placeholder = t === "language" ? "e.g. Thieves' Cant" : t === "tool" ? "e.g. Alchemist's Supplies" : "Name";
+		};
+		typeSel.addEventListener("change", sync);
+		sync();
+		const add = () => {
+			const type = typeSel.value;
+			const nm = type === "skill" ? R().titleCase(skillSel.value) : name.value.trim();
+			if (!nm) { TBUI.toast("Give it a name.", {error: true}); return; }
+			const hb = {id: TBBook.uid(), type, name: nm, desc: desc.value.trim(), addedAt: Date.now(), session: dayIso()};
+			if (type === "skill") hb.skill = skillSel.value;
+			if (type === "action") hb.eco = ecoSel.value;
+			if (["feat", "feature", "action"].includes(type) && uses.value.trim()) hb.uses = uses.value.trim();
+			if (type === "item") P_().gearOf(c).items.push({name: nm, source: "", qty: Math.max(1, Number(qty.value) || 1), custom: true, homebrew: true, desc: hb.desc, hbId: hb.id});
+			(P.homebrew ||= []).push(hb);
+			P_().log(c, `Homebrew added: ${nm} (${HB_LABEL[type]})`);
+			m.close();
+			save(c, {derived: true});
+		};
+		const m = TBUI.modal({
+			title: "Add homebrew",
+			body: h("div.pl-hbform", field("What is it?", typeSel), fName, fSkill, fEco, fQty, fUses, fDesc,
+				h("div.muted", {style: {fontSize: "12.5px"}}, "Items go into the session inventory; feats, traits, actions and proficiencies show on the sheet right away. Everything is saved to the character when you end the session.")),
+			footer: [h("button.btn", {on: {click: () => m.close()}}, "Cancel"), h("button.btn.primary", {on: {click: add}}, "Add")],
+		});
+		setTimeout(() => typeSel.focus(), 30);
+	};
+	const removeHomebrew = async (c, x, {saved = false} = {}) => {
+		const P = P_().stateOf(c);
+		if (saved) {
+			if (!(await TBUI.confirm("Remove homebrew", `Remove “${x.name}” from ${c.name || "the character"}?`, {okLabel: "Remove", danger: true}))) return;
+			c.homebrew = (c.homebrew || []).filter(y => y.id !== x.id);
+		} else {
+			P.homebrew = (P.homebrew || []).filter(y => y.id !== x.id);
+			if (x.type === "item") { const g = P_().gearOf(c).items; const ix = g.findIndex(i => i.hbId === x.id); if (ix >= 0) g.splice(ix, 1); }
+		}
+		P_().log(c, `Homebrew removed: ${x.name}`);
+		save(c, {derived: true});
+	};
+
+	const notesTab = (c) => {
+		const P = P_().stateOf(c);
+		const b = notesBook(c, {create: true});
+		const note = noteItemOf(b);
+		const ta = h("textarea.pl-notes-ta", {rows: 9, placeholder: "Anything worth remembering: names, places, clues, loot, who owes whom…"});
+		ta.value = htmlToText(note.html);
+		const status = h("span.muted", {style: {fontSize: "12px"}});
+		let timer = null;
+		ta.addEventListener("input", () => {
+			clearTimeout(timer);
+			status.textContent = "…";
+			timer = setTimeout(() => { note.html = textToHtml(ta.value); b.updatedAt = Date.now(); TBStore.changed("book"); status.textContent = "Saved"; }, 400);
+		});
+		const clips = clipsOf(b);
+		const clipRows = clips.sort((x, y) => (y.i.addedAt || 0) - (x.i.addedAt || 0)).map(({ch, i}) => expander(`clip:${i.id}`, [
+			h("span.kindtag.clip", "Clip"),
+			h("span.grow", h("b", i.title), i.src?.label ? h("span.muted", ` · ${i.src.label}`) : null),
+			h("button.btn.ghost.small", {title: "Remove from the notes", on: {click: () => { ch.items.splice(ch.items.indexOf(i), 1); TBStore.changed("book"); render(); }}}, "✕"),
+		], (body) => {
+			const frame = TBUI.fragFrame();
+			Object.assign(frame.style, {width: "100%", height: "340px", border: "0", display: "block"});
+			body.appendChild(frame);
+			frame.setContent(i.html);
+		}));
+		const hbRow = (x, saved) => expander(`hb:${x.id}`, [
+			h("span.kindtag.homebrew", HB_LABEL[x.type] || x.type),
+			h("span.grow", h("b", x.name), h("span.muted", saved ? " · on the character" : " · this session (saved when it ends)")),
+			h("button.btn.ghost.small", {title: "Remove", on: {click: () => removeHomebrew(c, x, {saved})}}, "✕"),
+		], (body) => { body.classList.add("hfeat-b"); body.innerHTML = x.desc ? textToHtml(x.desc) : "<p><i>No description.</i></p>"; });
+		const hbSession = P.homebrew || [];
+		const hbSaved = (c.homebrew || []).filter(x => x && x.name);
+		return h("div.pl-notes",
+			h("div.card.pl-card", h("div.card-h", h("h3", "Session notes"), h("span.muted", ` · ${dayLabel(b.sessionDate)}`), h("div.spacer"), status,
+				h("button.btn.small", {title: "Open this session's book in the Books tab", on: {click: () => TBApp.openBook(b.id)}}, "📖 Open in Books")),
+			h("div.card-b", ta, h("div.muted", {style: {fontSize: "12px", marginTop: "6px"}}, "This is a book for this session. When you end the session it is added to the character page under Notes, with the date."))),
+			h("div.card.pl-card", h("div.card-h", h("h3", "From the wiki"), h("span.muted", ` · ${clips.length}`), h("div.spacer"),
+				h("button.btn.small.primary", {on: {click: () => quickAdd(c)}}, "+ Quick add"),
+				h("button.btn.small", {title: "Browse the wiki in clip mode: whatever you click lands in these notes", on: {click: () => { TBApp.setClipTarget(b.id); TBApp.setView("wiki"); TBApp.toggleClipMode(true); }}}, "✂ Clip from the Wiki")),
+			h("div.card-b", ...(clipRows.length ? clipRows : [h("div.pick-empty", "Quick add a spell, item, creature or rule, or clip anything from the Wiki: it all lands here.")]))),
+			h("div.card.pl-card", h("div.card-h", h("h3", "Homebrew"), h("div.spacer"), h("button.btn.small.primary", {on: {click: () => homebrewModal(c)}}, "+ Add homebrew")),
+			h("div.card-b", ...(hbSession.length || hbSaved.length ? [...hbSession.map(x => hbRow(x, false)), ...hbSaved.map(x => hbRow(x, true))] : [h("div.pick-empty", "Your own items, feats, traits, actions and proficiencies. Items go into the inventory; the rest show up on the sheet.")]))),
+		);
+	};
+	// endregion
+
+	/** The character's Details from the builder, editable here; the edits are saved when the session ends. */
+	const ABOUT_SMALL = [["age", "Age"], ["height", "Height"], ["weight", "Weight"], ["eyes", "Eyes"]];
+	const ABOUT_TEXT = [["appearance", "Appearance", 3], ["personality", "Personality traits", 3], ["ideals", "Ideals", 2], ["bonds", "Bonds", 2], ["flaws", "Flaws", 2], ["backstory", "Backstory", 7], ["notes", "Notes for the booklet", 3]];
+	const aboutTab = (c, d) => {
+		const P = P_().stateOf(c);
+		const base = c.details || {};
+		const cur = (k) => (P.about && k in P.about ? P.about[k] : base[k]) || "";
+		const pill = h("span.pl-pending");
+		const syncPill = () => { const n = P.about ? Object.keys(P.about).length : 0; pill.textContent = n ? `${n} change${n === 1 ? "" : "s"}: saved when the session ends` : ""; };
+		const set = (k, v) => {
+			P.about ||= {};
+			if ((base[k] || "") === v || (k === "portrait" && (c.portrait || "") === v)) delete P.about[k]; else P.about[k] = v;
+			if (!Object.keys(P.about).length) delete P.about;
+			TBStore.changed("char");
+			syncPill();
+		};
+		const small = (k, label) => { const i = h("input", {type: "text", value: cur(k)}); i.addEventListener("input", () => set(k, i.value)); return h("label.field", h("span", label), i); };
+		const txt = (k, label, rows) => { const t = h("textarea", {rows}); t.value = cur(k); t.addEventListener("input", () => set(k, t.value)); return h("label.field", h("span", label), t); };
+		const align = h("select", h("option", {value: ""}, "—"), ...R().ALIGNMENTS.map(a => h("option", {value: a, selected: cur("alignment") === a}, a)));
+		align.addEventListener("change", () => set("alignment", align.value));
+		const portraitSrc = (P.about && P.about.portrait) || c.portrait;
+		const fileIn = h("input", {type: "file", accept: "image/*", style: {display: "none"}});
+		fileIn.addEventListener("change", async () => { if (fileIn.files[0]) { set("portrait", await TBUI.fileToDataUrl(fileIn.files[0])); render(); } });
+		syncPill();
+		return h("div.card.pl-card.pl-about", h("div.card-h", h("h3", "About"), h("div.spacer"), pill,
+			P.about ? h("button.btn.ghost.small", {title: "Forget this session's changes", on: {click: () => { delete P.about; save(c, {derived: true}); }}}, "Undo changes") : null),
+		h("div.card-b",
+			h("div.pl-about-top",
+				h("div.portrait", {title: "Click to choose a portrait", on: {click: () => fileIn.click()}}, portraitSrc ? h("img", {src: portraitSrc}) : "Portrait"), fileIn,
+				h("div.grow",
+					h("div.pl-kv", h("span.k", "Species"), h("span.v", d.species || "—")),
+					h("div.pl-kv", h("span.k", "Background"), h("span.v", d.background || "—")),
+					h("div.pl-kv", h("span.k", "Class"), h("span.v", d.classLine)),
+					h("div.pl-kv", h("span.k", "Size"), h("span.v", d.size || "—")),
+					h("label.field", h("span", "Alignment"), align),
+					h("div.grid2", ...ABOUT_SMALL.map(([k, l]) => small(k, l))),
+				),
+			),
+			...ABOUT_TEXT.map(([k, l, r]) => txt(k, l, r)),
+		));
+	};
+
+	const menuCard = async (c, d, formMon) => {
+		const P = P_().stateOf(c);
+		const tab = MAIN_TABS.some(([k]) => k === S.mainTab) ? S.mainTab : "actions";
+		const body = {
+			actions: async () => [turnBar(c), formCard(c, d, formMon), companionsCard(c), await actionsCard(c, d), resourcesCard(c, d), effectsCard(c, d)],
+			features: async () => [featuresTab(c, d)],
+			equipment: async () => [inventoryCard(c, d)],
+			notes: async () => [notesTab(c)],
+			about: async () => [aboutTab(c, d)],
+		}[tab];
+		const badge = (k) => (k === "about" && P.about ? h("i.pl-badge", {title: "Unsaved changes"}) : k === "notes" && (P.homebrew || []).length ? h("i.pl-badge") : null);
+		return h("div.pl-menu",
+			h("div.pl-mtabs", ...MAIN_TABS.map(([k, l]) => h("button", {class: k === tab ? "active" : "", on: {click: () => { S.mainTab = k; render(); }}}, l, badge(k)))),
+			h("div.pl-menu-b", ...(await body()).filter(Boolean)));
+	};
+	// endregion
+
 	// region Layout
+	/**
+	 * Tablets and mid-size windows (under 1350 px): the same three columns as a big screen (skills · menu ·
+	 * defenses), laid out at TABLET_W px and scaled to fit, so portrait tablets look like the full sheet.
+	 */
+	const TABLET_W = 980;
+	const fitSheet = () => {
+		const root = document.getElementById("view-play");
+		const sheet = root?.querySelector(".pl-sheet");
+		if (!sheet) return;
+		const w = root.clientWidth || window.innerWidth;
+		const tablet = w < 1350;
+		sheet.classList.toggle("pl-tablet", tablet);
+		sheet.classList.toggle("pl-touch", !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches));
+		sheet.style.zoom = tablet && w < TABLET_W ? String(Math.max(0.55, Math.floor(w / TABLET_W * 1000) / 1000)) : "";
+	};
+	window.addEventListener("resize", TBUI.debounce(fitSheet, 120));
+	window.addEventListener("orientationchange", () => setTimeout(fitSheet, 250));
 	/** The Store tab is open only during a session. */
 	const syncNav = () => {
 		document.querySelectorAll("#tb-nav [data-view=store], #tb-bnav [data-view=store]").forEach(b => { b.disabled = !S.session; b.title = S.session ? "Buy, sell and barter with the session's character" : "Start a session in the Play tab to open the Store"; });
@@ -1104,6 +1537,7 @@ globalThis.TBViewPlay = (() => {
 				if (!pick) return;
 				if (pick === "fresh") P_().beginGear(c);
 			} else P_().beginGear(c);
+			openNotes(c);
 			TBStore.changed("char");
 		}
 		S.charId = id; S.session = true; syncNav(); render();
@@ -1172,13 +1606,17 @@ globalThis.TBViewPlay = (() => {
 				return;
 			}
 			const cols = [
-				h("div.pl-col", hpCard(c, d), conditionsCard(c), abilitiesCard(c, d)),
-				h("div.pl-col", turnBar(c), formCard(c, d, formMon), companionsCard(c), await actionsCard(c, d), effectsCard(c, d)),
-				h("div.pl-col", resourcesCard(c, d), sessionCard(c), inventoryCard(c, d), logCard(c, d)),
+				h("div.pl-col.pl-colL", skillsCard(c, d)),
+				h("div.pl-col.pl-colM", await menuCard(c, d, formMon)),
+				h("div.pl-col.pl-colR", defensesCard(c, d), conditionsCard(c), sensesCard(c, d), profsCard(c, d), sessionCard(c), logCard(c, d)),
 			];
-			const body = h("div.pl-body", h("div.pl-grid.session", ...cols));
+			const body = h("div.pl-body",
+				topBar(c),
+				h("div.pl-top", h("div.pl-topL", header(c, d), hpCard(c, d)), h("div.pl-topR", abilitiesCard(c, d))),
+				h("div.pl-grid.session", ...cols));
 			clear(root);
-			root.appendChild(h("div.char-main", header(c, d), body));
+			root.appendChild(h("div.char-main.pl-sheet", body));
+			fitSheet();
 			body.scrollTop = mainScroll;
 			cols.forEach((el, i) => { el.scrollTop = scrolls[i] || 0; });
 		} catch (e) {

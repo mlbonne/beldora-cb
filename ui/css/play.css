@@ -145,3 +145,206 @@ input.pl-die { width: 90px; font-size: 20px; text-align: center; padding: 6px; }
 /* End session: equipment and coin changes to write back to the character page */
 .pl-gearchg { border: 1px solid var(--line2); border-radius: 6px; padding: 8px 10px; background: var(--bg); }
 .pl-gearchg ul { margin: 6px 0 4px 18px; padding: 0; font-size: 13px; color: var(--text2); max-height: 160px; overflow: auto; }
+
+/* region Sheet layout (1.8): top bar · header + HP | abilities + saves · skills | tabbed menu | defenses */
+.pl-sheet .pl-body { padding-bottom: 60px; }
+.pl-topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: rgba(22, 19, 15, 0.94); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.pl-seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; }
+.pl-seg button { background: var(--bg2); border: 0; border-right: 1px solid var(--line2); color: var(--text2); padding: 5px 14px; font-family: var(--head); font-size: 12.5px; letter-spacing: 0.04em; cursor: pointer; }
+.pl-seg button:last-child { border-right: 0; }
+.pl-seg button:hover { color: var(--text); }
+.pl-seg button.on { background: #3a2e1c; color: var(--accent2); }
+.pl-seg button.on.adv { background: #22331c; color: #b9dca2; }
+.pl-seg button.on.dis { background: #3a1f1a; color: #f0b3aa; }
+.pl-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; padding: 14px 16px 0; max-width: 1900px; margin: 0 auto; }
+.pl-topL, .pl-topR { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.pl-grid.session { grid-template-columns: minmax(270px, 310px) minmax(440px, 1fr) minmax(280px, 330px); padding-top: 14px; }
+
+/* Header: portrait with the level badge, name, XP, then Proficiency, Initiative, spellcasting and Inspiration */
+.pl-head.card { display: flex; align-items: center; gap: 16px; padding: 14px 16px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg2); flex-wrap: wrap; }
+.pl-portrait { position: relative; width: 96px; height: 96px; flex: 0 0 auto; border: 2px solid var(--red); border-radius: 8px; background: var(--bg); }
+.pl-portrait img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; display: block; }
+.pl-portrait img.boar { object-fit: contain; padding: 14px; opacity: 0.85; }
+.pl-lvl { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); width: 30px; height: 32px; background: var(--red); color: #fff; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; clip-path: polygon(50% 0, 100% 18%, 100% 70%, 50% 100%, 0 70%, 0 18%); }
+.pl-id { flex: 1 1 150px; min-width: 0; }
+.pl-id .pl-line { font-size: 13px; }
+.pl-xp { font-size: 12px; color: var(--text3); margin-top: 5px; }
+.pl-ready { color: var(--accent2); font-weight: 700; }
+.pl-headstats { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+.pl-headstats .pl-stat { min-width: 82px; }
+button.pl-insp { font: inherit; color: var(--text); min-width: 92px; gap: 2px; align-items: center; }
+.pl-insp.on { background: var(--red); border-color: #d9796b; }
+.pl-insp.on .v { color: #fff; text-shadow: 0 0 8px rgba(255, 220, 200, 0.6); }
+.pl-insp.on .l { color: #ffe1d9; }
+
+/* Hit points */
+.pl-hpcard .card-h { gap: 6px; }
+.pl-bloodied { font-size: 10.5px; color: #f0b3aa; border: 1px solid #6b2c24; border-radius: 3px; padding: 0 5px; text-transform: uppercase; letter-spacing: 0.05em; }
+.pl-hp { display: flex; gap: 10px; align-items: stretch; }
+.pl-hpbox { flex: 1; border: 1px solid var(--line2); border-radius: 8px; background: var(--bg); padding: 6px 14px 5px; }
+.pl-hpnums { display: flex; align-items: baseline; justify-content: space-around; }
+.pl-hpnums b { font-size: 32px; line-height: 1.1; }
+.pl-hpnums i { color: var(--text3); font-style: normal; font-size: 22px; }
+.pl-hpnums span { font-size: 24px; color: var(--text2); }
+.pl-hplab { display: flex; justify-content: space-around; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-top: 3px; }
+.pl-tempbox { width: 80px; border: 1px solid var(--line2); border-radius: 8px; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.pl-tempbox b { font-size: 26px; color: var(--text3); }
+.pl-tempbox.on { border-color: #3f5468; }
+.pl-tempbox.on b { color: #8fc1e8; }
+.pl-tempbox span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); }
+.pl-hpctl { margin-top: 10px; flex-wrap: wrap; gap: 6px; }
+.pl-hpctl input[type=number] { width: 66px; text-align: center; font-size: 16px; }
+.pl-heal { border-color: #4b5a3c; color: #b9dca2; }
+
+/* Abilities as red shields, saving throws underneath */
+.pl-abilcard .pl-subh { border-top: 1px solid var(--line); }
+.pl-abils { grid-template-columns: repeat(6, 1fr); gap: 8px; }
+button.pl-abil { font: inherit; color: var(--text); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 2px 16px; background: linear-gradient(#4a1d18, #2a1310); border: 1.5px solid var(--red); border-radius: 9px 9px 50% 50% / 9px 9px 26% 26%; }
+button.pl-abil:hover { border-color: #e07a6c; filter: brightness(1.1); }
+.pl-abil .m { font-size: 25px; font-weight: 800; line-height: 1.1; cursor: inherit; }
+.pl-abil .m:hover { background: none; }
+.pl-abil .n { font-size: 11px; color: #f0c8c0; letter-spacing: 0.02em; }
+.pl-abil .s { margin-top: 4px; font-size: 11px; color: var(--text2); background: var(--bg); border: 1px solid var(--line2); border-radius: 999px; padding: 0 8px; }
+button.pl-abil.form { border-color: #b06bb8; background: linear-gradient(#3a2240, #241a26); }
+.pl-saves { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.pl-save { font: inherit; color: var(--text); cursor: pointer; background: var(--bg); border: 1px solid var(--line2); border-radius: 8px; padding: 7px 2px 5px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pl-save:hover { border-color: var(--accent); }
+.pl-save .v { font-size: 19px; font-weight: 800; }
+.pl-save .n { font-size: 10.5px; color: var(--text3); letter-spacing: 0.06em; display: flex; align-items: center; gap: 5px; }
+.pl-save .dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--text3); display: inline-block; }
+.pl-save.prof { border-color: var(--accent); background: #2b2416; }
+.pl-save.prof .dot { background: var(--accent); border-color: var(--accent2); }
+
+/* Skills: name · ability · proficiency · bonus · situational */
+.pl-skillcard .card-b { padding: 6px 10px 10px; }
+.pl-skill { display: grid; grid-template-columns: minmax(0, 1fr) 36px 14px 42px 40px; align-items: center; gap: 6px; padding: 3px 2px; }
+.pl-skill .nm { font-size: 13.5px; }
+.pl-skill .ab { font-size: 10px; color: var(--text3); border: 1px solid var(--line2); border-radius: 3px; text-align: center; padding: 0 2px; }
+.pl-skill .dot { justify-self: center; width: 11px; height: 11px; }
+.pl-skill .bon { font: inherit; font-weight: 800; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--line2); border-radius: 6px; padding: 3px 0; cursor: pointer; text-align: center; }
+.pl-skill .bon:hover { border-color: var(--accent2); }
+.pl-skill.prof .bon { border-color: var(--accent); background: #2b2416; }
+.pl-skill.exp .bon { border-color: var(--accent2); background: #3a2e1c; color: var(--accent2); }
+.pl-skill input.pl-sit { width: 40px; }
+.pl-skillhead { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); border-bottom: 1px solid var(--line); padding-bottom: 5px; margin-bottom: 3px; }
+.pl-skillhead:hover { background: none; }
+.pl-skillhead .ab, .pl-skillhead .bon, .pl-skillhead .dot.none { border: 0; background: none; font-weight: 400; font-size: 10px; width: auto; height: auto; color: var(--text3); padding: 0; cursor: default; }
+.pl-skillhead .pl-sit { text-align: center; }
+
+/* The tabbed centre menu */
+.pl-menu { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.pl-mtabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.pl-mtabs button { position: relative; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text2); padding: 13px 12px 10px; font-family: var(--head); font-size: 14px; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; margin-bottom: -1px; }
+.pl-mtabs button:hover { color: var(--text); }
+.pl-mtabs button.active { color: #f0b3aa; border-bottom-color: var(--red); }
+.pl-badge { position: absolute; top: 9px; right: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.pl-menu-b { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.pl-menu-b .card { background: #1a1612; }
+
+/* Rows that expand in place (features, clips, homebrew) */
+.pl-filter { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px 0; }
+.pl-xp-row { border-bottom: 1px solid #2a241d; }
+.pl-xp-row:last-child { border-bottom: 0; }
+.pl-xp-h { display: flex; align-items: center; gap: 8px; padding: 7px 2px; cursor: pointer; }
+.pl-xp-h:hover b { color: var(--accent2); }
+.pl-xp-sum { font-size: 12.5px; color: var(--text2); font-weight: 400; }
+.pl-xp-row.open .pl-xp-sum { display: none; }
+.pl-xp-b:empty { display: none; }
+.pl-xp-b { padding: 2px 4px 10px; }
+.kindtag.homebrew { color: #e8a08f; border-color: #6b3a2f; }
+.kindtag.clip { color: #8fc1e8; border-color: #3f5468; }
+.kindtag.note { color: var(--accent2); border-color: #6a5232; }
+
+/* Notes and homebrew */
+.pl-notes { display: flex; flex-direction: column; gap: 12px; }
+.pl-notes-ta { width: 100%; resize: vertical; min-height: 170px; font-family: var(--serif); font-size: 15.5px; line-height: 1.45; background: var(--bg); border: 1px solid var(--line2); border-radius: 6px; padding: 10px 12px; color: var(--text); }
+.pl-hbform { padding: 14px 16px; width: 500px; max-width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.pl-hbform textarea, .pl-about textarea { width: 100%; resize: vertical; }
+.pl-hbform input[type=text], .pl-hbform select { width: 100%; }
+
+/* About */
+.pl-about-top { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 8px; }
+.pl-about .portrait { width: 130px; height: 160px; }
+.pl-pending { font-size: 12px; color: var(--accent2); }
+
+/* Right column: key/value rows, defenses */
+.pl-kv { display: flex; gap: 10px; padding: 3px 0; font-size: 13.5px; }
+.pl-kv .k { flex: 0 0 104px; color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 2px; }
+.pl-kv .v { flex: 1; min-width: 0; }
+.pl-kvh { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #e07a6c; margin: 8px 0 2px; }
+.pl-kvh:first-child { margin-top: 0; }
+.pl-defstats { display: flex; gap: 10px; margin-bottom: 8px; }
+.pl-defstats > .pl-stat, .pl-shield { flex: 1; }
+.pl-shield { display: flex; }
+.pl-shield .pl-stat { flex: 1; border-color: var(--red); border-radius: 10px 10px 50% 50% / 10px 10px 28% 28%; background: linear-gradient(#2c1411, var(--bg)); padding-bottom: 18px; }
+.pl-defstats .pl-stat { padding-top: 10px; }
+.pl-defstats .pl-stat .v { font-size: 28px; }
+
+@media (max-width: 1150px) { .pl-top { grid-template-columns: 1fr; } }
+
+/* Tablets and mid-size windows: the full three-column sheet, laid out 980 px wide and scaled to fit (view-play fitSheet) */
+.pl-tablet .pl-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 12px 12px 0; }
+.pl-tablet .pl-topL, .pl-tablet .pl-topR { gap: 12px; }
+.pl-tablet .pl-grid.session { grid-template-columns: 232px minmax(0, 1fr) 238px; gap: 12px; padding: 12px 12px 40px; }
+.pl-tablet .pl-grid.session > .pl-colR { grid-column: auto; display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.pl-tablet .pl-colR .card .row { flex-wrap: wrap; }
+.pl-tablet .pl-exh-note { flex-basis: 100%; }
+.pl-tablet .pl-col { gap: 12px; }
+.pl-tablet .pl-topbar { padding: 8px 12px; }
+.pl-tablet .card-h { padding: 9px 12px; }
+.pl-tablet .pl-card .card-b { padding: 9px 10px; }
+/* Header: portrait, name and XP, then the four boxes in a 2 × 2 block */
+.pl-tablet .pl-head.card { gap: 12px; padding: 12px 12px 16px; flex-wrap: nowrap; }
+.pl-tablet .pl-portrait { width: 78px; height: 78px; }
+.pl-tablet .pl-name { font-size: 20px; }
+.pl-tablet .pl-headstats { display: grid; grid-template-columns: repeat(2, minmax(78px, auto)); gap: 6px; flex: 0 0 auto; }
+.pl-tablet .pl-headstats .pl-stat, .pl-tablet button.pl-insp { min-width: 78px; padding: 3px 6px; }
+.pl-tablet .pl-stat .v, .pl-tablet .pl-insp .v { font-size: 19px; }
+.pl-tablet .pl-stat .s { display: none; }
+.pl-tablet .pl-defstats .pl-stat .s { display: block; }
+/* Hit points */
+.pl-tablet .pl-hpnums b { font-size: 28px; }
+.pl-tablet .pl-hpctl { gap: 5px; }
+.pl-tablet .pl-hpctl select { max-width: 120px; }
+/* Abilities and saves stay in one row of six */
+.pl-tablet .pl-abils, .pl-tablet .pl-saves { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.pl-tablet .pl-abil .m { font-size: 22px; }
+.pl-tablet .pl-abil .n { font-size: 10px; }
+.pl-tablet .pl-save .v { font-size: 17px; }
+/* Skills column */
+.pl-tablet .pl-skill { grid-template-columns: minmax(0, 1fr) 32px 12px 40px 34px; gap: 5px; }
+.pl-tablet .pl-skill input.pl-sit { width: 34px; }
+.pl-tablet .pl-skill .nm { font-size: 13.5px; line-height: 1.15; }
+/* Centre menu */
+.pl-tablet .pl-mtabs { padding: 0 4px; gap: 0; justify-content: space-between; scrollbar-width: none; }
+.pl-tablet .pl-mtabs::-webkit-scrollbar { display: none; }
+.pl-tablet .pl-mtabs button { padding: 12px 6px 10px; font-size: 12.5px; letter-spacing: 0.01em; }
+.pl-tablet .pl-menu-b { padding: 10px; gap: 10px; }
+.pl-tablet .pl-tabs button { padding: 6px 8px; }
+.pl-tablet .pl-acts { max-height: none; }
+/* Right column */
+.pl-tablet .pl-kv .k { flex-basis: 84px; }
+.pl-tablet .pl-defstats { gap: 8px; }
+.pl-tablet .pl-defstats .pl-stat .v { font-size: 24px; }
+.pl-tablet .picker-chips .chip { font-size: 12px; }
+.pl-tablet .pl-about-top { flex-wrap: wrap; }
+
+/* Touch screens: bigger targets for fingers (on top of the tablet layout's scaling) */
+.pl-touch .btn.small { min-height: 34px; padding: 4px 12px; }
+.pl-touch .btn { min-height: 38px; }
+.pl-touch .pl-skill { padding: 4px 2px; }
+.pl-touch .pl-skill .bon { padding: 6px 0; }
+.pl-touch .pl-mtabs button { padding-top: 15px; padding-bottom: 13px; }
+.pl-touch .pl-seg button { padding: 9px 16px; }
+.pl-touch .pl-eco { padding: 7px 14px; }
+.pl-touch .pl-pips .pip { width: 18px; height: 18px; }
+.pl-touch .pl-xp-h { padding: 10px 2px; }
+.pl-touch .pl-act { padding: 9px 4px; }
+.pl-touch .chip { padding: 6px 10px; }
+.pl-touch input, .pl-touch select { min-height: 34px; }
+.pl-touch .pl-edit { font-size: 15px; padding: 2px 4px; }
+@media (max-width: 1350px) {
+	.pl-grid.session { grid-template-columns: minmax(250px, 290px) minmax(0, 1fr); }
+	.pl-grid.session > .pl-colR { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+}
+/* endregion */

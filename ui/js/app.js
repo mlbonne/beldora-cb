@@ -70,8 +70,9 @@ globalThis.TBApp = (() => {
 		if (!ok) return;
 		const st = TBStore.get();
 		st.characters = st.characters.filter(c => c.id !== char.id);
-		st.books = st.books.filter(b => b.ownerCharId !== char.id);
-		if (st.settings.clipTarget === char.id) st.settings.clipTarget = null;
+		st.books = st.books.filter(b => b.ownerCharId !== char.id && b.notesOf !== char.id);
+		const tgt = st.settings.clipTarget;
+		if (tgt && !st.characters.some(c => c.id === tgt) && !st.books.some(b => b.id === tgt)) st.settings.clipTarget = null;
 		if (S.activeCharId === char.id) S.activeCharId = st.characters[0]?.id || null;
 		TBStore.changed("char");
 		renderCharacters();
@@ -374,7 +375,16 @@ globalThis.TBApp = (() => {
 	// region Navigation
 	const isMobile = () => !!(window.tbNative && window.tbNative.platform === "android");
 	/** Phone layout: the Android app, the web version on a narrow screen, or "?phone" in the address (testing). */
-	const isPhone = () => isMobile() || /[?&]phone\b/.test(location.search) || !!(window.tbNative?.isWeb && window.matchMedia("(max-width: 760px)").matches);
+	/**
+	 * The phone layout: the Android app, `?phone`, or the web on a phone. Tablets (short side 600+ px, either
+	 * orientation) get the full app; `?full` forces it. Very narrow windows still switch to the phone layout.
+	 */
+	const isPhone = () => {
+		if (isMobile() || /[?&]phone\b/.test(location.search)) return true;
+		if (!window.tbNative?.isWeb || /[?&]full\b/.test(location.search)) return false;
+		const short = Math.min(window.screen?.width || 9999, window.screen?.height || 9999);
+		return short < 600 || window.innerWidth < 520;
+	};
 	/** Bottom tab bar on phones: Build · Play · Store · More. */
 	const buildBottomNav = () => {
 		const nav = document.getElementById("tb-bnav");
@@ -435,6 +445,12 @@ globalThis.TBApp = (() => {
 	const openCharTab = (tab) => {
 		S.charTab = tab;
 		renderCharacters();
+	};
+
+	/** Show one book in the Books tab (session notes open from Play and the character page). */
+	const openBook = (id) => {
+		S.activeBookId = id;
+		setView("books");
 	};
 
 	const openTargetBook = () => {
@@ -594,7 +610,7 @@ globalThis.TBApp = (() => {
 	return {
 		init, setView, createCharacter, charChanged, syncBook, renderCharHeader, renderCharacters,
 		addClip, toggleClipMode, isClipMode: () => S.clipMode, clipTargetLabel, setClipTarget,
-		browseFor, openWiki, openCharTab, openTargetBook, newCharacterFromWiki, state: S,
+		browseFor, openWiki, openCharTab, openTargetBook, openBook, newCharacterFromWiki, state: S,
 		clipTarget, clipChapter, setClipChapter, createBook, newBookFromWiki, renderBooks, isMobile, isPhone,
 	};
 })();

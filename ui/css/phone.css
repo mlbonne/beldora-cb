@@ -78,3 +78,12 @@
 .pm .pl-acts, .pm .pl-log, .pm .pl-inv, .pm .pl-effects { max-height: none; overflow: visible; }
 /* Sheet footers: the choices on one row, Cancel underneath */
 .tb-phone .modal-f .btn:first-child:not(:only-child) { order: 9; flex-basis: 100%; }
+
+/* 1.8: more Play tabs (Traits, Notes, About); the strip scrolls sideways */
+.pm-tabs { overflow-x: auto; scrollbar-width: none; }
+.pm-tabs::-webkit-scrollbar { display: none; }
+.pm-tabs button { flex: 1 0 auto; padding: 9px 12px 7px; }
+.pm .pl-abils, .pm .pl-saves { grid-template-columns: repeat(3, 1fr); }
+.pm .pl-about-top { flex-direction: column; align-items: center; }
+.pm .pl-about-top > .grow { width: 100%; }
+.pm .pl-hbform { width: 100%; }

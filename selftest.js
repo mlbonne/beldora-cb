@@ -289,7 +289,7 @@ async function play ({baseUrl, outDir, appDir, renderPdf}) {
 		[...document.querySelectorAll(".modal .pl-row")].find(r => /^Giant Ape/.test(r.querySelector(".nm").textContent)).querySelector(".btn.primary").click(); await wait(1500);
 		const c = TBStore.char("st-druid");
 		const inp = document.querySelector(".pl-card .row input[type=number]"); inp.value = "25";
-		[...document.querySelectorAll(".btn")].find(b => b.textContent === "− Damage").click(); await wait(1500);
+		[...document.querySelectorAll(".btn")].find(b => /Damage$/.test(b.textContent)).click(); await wait(1500);
 		[...document.querySelectorAll(".pl-skill .nm")].find(e => /^Perception/.test(e.textContent)).click(); await wait(1200);
 		// A summon too: Summon Beast (Land) from a level 3 slot
 		const rowS = row("Summon Beast");
@@ -589,7 +589,7 @@ async function store ({baseUrl, outDir, appDir}) {
 		// The Store's inventory card: wield the new Longsword there, then look at Play
 		const storeInv = [...document.querySelectorAll("#view-store .pl-card")].find(e => e.querySelector("h3")?.textContent === "Inventory");
 		[...storeInv.querySelectorAll(".pl-item")].find(e => e.querySelector(".nm")?.firstChild?.textContent === "Longsword").querySelector("input[type=checkbox]").click(); await wait(1500);
-		TBApp.setView("play"); await wait(2000);
+		TBViewPlay.state.mainTab = "equipment"; TBApp.setView("play"); await wait(2000);
 		const playEq = [...document.querySelectorAll("#view-play .pl-item")].filter(e => e.querySelector("input[type=checkbox]")?.checked).map(e => e.querySelector(".nm").textContent);
 		const charPageMid = {cp: c.equipment.cp, items: c.equipment.items.map(i => i.name + " x" + (i.qty || 1) + (i.equipped ? " (eq)" : ""))};
 		[...document.querySelectorAll(".btn")].find(b => /End session/.test(b.textContent)).click(); await wait(800);
@@ -671,7 +671,7 @@ async function dice ({baseUrl, outDir, appDir}) {
 		P.concentration = {name: "Searing Smite", level: 1};
 		P.physical = false; TBViewPlay.render(); await wait(1500);
 		const inp = document.querySelector("#view-play .pl-card .row input[type=number]"); inp.value = "12";
-		[...document.querySelectorAll("#view-play .btn")].find(b => b.textContent === "− Damage").click(); await wait(2000);
+		[...document.querySelectorAll("#view-play .btn")].find(b => /Damage$/.test(b.textContent)).click(); await wait(2000);
 		return {log: logTop("st-pal", 4), conc: P.concentration?.name || null};
 	`);
 	// B. "Some rolls": a skill check that changes nothing isn't asked for
@@ -736,3 +736,162 @@ async function dice ({baseUrl, outDir, appDir}) {
 }
 
 module.exports.dice = dice;
+
+/**
+ * SHEET (1.8): the Play sheet's tabbed menu. Features & Traits, Equipment, Notes (session book, quick add,
+ * homebrew of every kind), About (edits held until End session), then End session: notes reach the character page.
+ */
+async function sheet ({baseUrl, outDir, appDir}) {
+	fs.mkdirSync(outDir, {recursive: true});
+	const win = new BrowserWindow({show: false, width: 1600, height: 1000, webPreferences: {preload: path.join(appDir, "preload.js"), contextIsolation: true, sandbox: false}});
+	win.webContents.on("console-message", (e, level, message, line, sourceId) => { if (level >= 2) fs.appendFileSync(path.join(outDir, "console.txt"), `${message} (${sourceId}:${line})\n`); });
+	await win.loadURL(`${baseUrl}/tb-app.html`);
+	const js = (code) => win.webContents.executeJavaScript(`(async () => { ${code} })()`);
+	const wait = (ms) => new Promise(r => setTimeout(r, ms));
+	const shot = async (name) => fs.writeFileSync(path.join(outDir, name), (await win.webContents.capturePage()).toPNG());
+	await wait(3000);
+	const out = {};
+	out.setup = await js(`
+		const st = TBStore.get();
+		st.characters.push({id: "st-rogue", name: "Rome", player: "", classes: [{name: "Rogue", source: "XPHB", level: 5}], species: {name: "Human", source: "XPHB"}, background: {name: "Criminal", source: "XPHB"}, abilities: {method: "manual", base: {str: 10, dex: 16, con: 14, int: 12, wis: 10, cha: 14}}, equipment: {items: [{name: "Leather Armor", source: "XPHB", qty: 1, equipped: true}, {name: "Dagger", source: "XPHB", qty: 2, equipped: true}, {name: "Shortbow", source: "XPHB", qty: 1}], cp: 2500}, choices: {}, feats: [], spells: [], optfeatures: [], details: {alignment: "Chaotic Good", age: "24", backstory: "Grew up on the docks."}, settings: {}, xp: 6500, createdAt: Date.now()});
+		await TBApp.syncBook(TBStore.char("st-rogue"));
+		st.settings.clipTarget = "st-rogue";
+		TBApp.setView("play"); await TBViewPlay.startSession("st-rogue"); await new Promise(r => setTimeout(r, 2500));
+		const b = TBStore.get().books.find(x => x.notesOf === "st-rogue");
+		return {notesBook: !!b, clipTarget: st.settings.clipTarget === b?.id, tabs: [...document.querySelectorAll(".pl-mtabs button")].map(x => x.textContent)};
+	`);
+	await shot("sheet-actions.png");
+	const tab = (k) => js(`TBViewPlay.state.mainTab = "${k}"; await TBViewPlay.render(); await new Promise(r => setTimeout(r, 900)); document.querySelector(".pl-menu")?.scrollIntoView(); document.querySelector(".pl-body").scrollTop -= 60; return [...document.querySelectorAll(".pl-mtabs button.active")].map(x => x.textContent)`);
+	out.features = await tab("features");
+	out.featureRows = await js(`
+		const rows = [...document.querySelectorAll(".pl-menu .pl-xp-row")];
+		rows.find(r => /Sneak Attack/.test(r.textContent))?.querySelector(".pl-xp-h").click();
+		await new Promise(r => setTimeout(r, 400));
+		return {count: rows.length, open: !!document.querySelector(".pl-menu .pl-xp-row.open .hfeat-b"), names: rows.slice(0, 8).map(r => r.querySelector("b").textContent)};
+	`);
+	await shot("sheet-features.png");
+	out.equipment = await tab("equipment");
+	out.equipmentRows = await js(`return [...document.querySelectorAll("#view-play .pl-menu .pl-item .nm")].map(e => e.textContent)`);
+	// Notes: write, quick-add a spell (as the picker would), add one homebrew of each kind
+	out.notes = await tab("notes");
+	out.notesWork = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const ta = document.querySelector(".pl-notes-ta");
+		ta.value = "Met Captain Vex at the harbor.\\n\\nShe owes us 50 gp."; ta.dispatchEvent(new Event("input")); await wait(800);
+		const c = TBStore.char("st-rogue");
+		const b = TBStore.get().books.find(x => x.notesOf === c.id);
+		// Clip mode lands in the session book's wiki chapter
+		TBApp.addClip({title: "Fireball", html: "<p>A bright streak…</p>", url: "spells.html#fireball_xphb", pageTitle: "Spells", kind: "Popup"});
+		const kinds = [
+			{type: "item", name: "Vex's Signet Ring", desc: "A ring with a kraken seal."},
+			{type: "feat", name: "Harbor Rat", desc: "You have Advantage on checks to find your way around docks."},
+			{type: "feature", name: "Dockside Contacts", desc: "You know someone at every pier."},
+			{type: "action", name: "Cheap Shot", eco: "bonus", uses: "1 / Short Rest", desc: "As a Bonus Action, you can make one dagger attack against a creature within 5 feet."},
+			{type: "skill", skill: "athletics"},
+			{type: "tool", name: "Navigator's Tools"},
+			{type: "language", name: "Thieves' Cant"},
+		];
+		for (const k of kinds) {
+			[...document.querySelectorAll(".pl-notes .btn")].find(x => /Add homebrew/.test(x.textContent)).click(); await wait(400);
+			const m = document.querySelector(".modal:last-of-type") || document;
+			const sels = [...document.querySelectorAll(".pl-hbform select")];
+			sels[0].value = k.type; sels[0].dispatchEvent(new Event("change"));
+			if (k.skill) { sels[1].value = k.skill; }
+			if (k.eco) { sels[2].value = k.eco; }
+			const ins = [...document.querySelectorAll(".pl-hbform input[type=text]")];
+			if (k.name) ins[0].value = k.name;
+			if (k.uses) ins[1].value = k.uses;
+			if (k.desc) document.querySelector(".pl-hbform textarea").value = k.desc;
+			[...document.querySelectorAll(".modal .btn.primary")].find(x => x.textContent === "Add").click(); await wait(1200);
+		}
+		const A = await TBRules.analyze(TBPlay.sessionChar(c));
+		const d = A.derived;
+		return {
+			noteHtml: b.chapters[0].items[0].html, clips: b.chapters.flatMap(ch => ch.items.filter(i => i.kind === "clip").map(i => i.title)),
+			homebrewRows: [...document.querySelectorAll(".pl-notes .pl-xp-row b")].map(e => e.textContent),
+			athletics: d.skills.athletics, tools: d.tools, languages: d.languages,
+			homebrewFeatures: TBRules.featureList(d).filter(f => f.homebrew).map(f => f.name + " [" + f.act + "]"),
+			inventory: TBPlay.gearOf(c).items.map(i => i.name),
+			saved: (c.homebrew || []).length,
+		};
+	`);
+	await shot("sheet-notes.png");
+	out.actionsHasHomebrew = await js(`TBViewPlay.state.mainTab = "actions"; TBViewPlay.state.actTab = "bonus"; await TBViewPlay.render(); await new Promise(r => setTimeout(r, 900)); return [...document.querySelectorAll(".pl-act .t")].map(e => e.firstChild.textContent)`);
+	// About: change a few details (held in the session)
+	out.about = await tab("about");
+	out.aboutWork = await js(`
+		const f = (label) => [...document.querySelectorAll(".pl-about label.field")].find(l => l.querySelector("span").textContent === label).querySelector("input, textarea, select");
+		const set = (label, v) => { const el = f(label); el.value = v; el.dispatchEvent(new Event(el.tagName === "SELECT" ? "change" : "input")); };
+		set("Age", "25"); set("Backstory", "Grew up on the docks. Now sails with Captain Vex."); set("Alignment", "Neutral Good");
+		await new Promise(r => setTimeout(r, 400));
+		const c = TBStore.char("st-rogue");
+		return {pending: document.querySelector(".pl-pending").textContent, charAgeStill: c.details.age, sessionAge: TBPlay.stateOf(c).about.age};
+	`);
+	await shot("sheet-about.png");
+	// End session: keep everything
+	out.end = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		[...document.querySelectorAll("#view-play .btn")].find(b => /End session/.test(b.textContent)).click(); await wait(900);
+		const dialog = document.querySelector(".modal")?.innerText;
+		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "End without XP").click(); await wait(1500);
+		const c = TBStore.char("st-rogue");
+		const b = TBStore.get().books.find(x => x.notesOf === c.id);
+		return {
+			dialog, details: {age: c.details.age, alignment: c.details.alignment, backstory: c.details.backstory},
+			homebrew: (c.homebrew || []).map(x => x.type + ":" + x.name), items: c.equipment.items.map(i => i.name),
+			book: b ? {ended: !!b.endedAt, date: b.sessionDate, chapters: b.chapters.map(ch => ch.title + " (" + ch.items.length + ")")} : null,
+			clipTarget: TBStore.get().settings.clipTarget, play: {homebrew: TBPlay.stateOf(c).homebrew, about: TBPlay.stateOf(c).about},
+		};
+	`);
+	// Character page: the Notes card, opened
+	out.charPage = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		TBApp.state.activeCharId = "st-rogue"; TBApp.state.charTab = "hero"; TBApp.setView("characters"); await wait(2500);
+		const card = document.querySelector(".hnotes");
+		card?.querySelector(".hnote .hfeat-h")?.click(); await wait(500);
+		card?.scrollIntoView();
+		const feats = [...document.querySelectorAll(".hfeatures .hfeat-h b")].map(e => e.textContent).filter(n => /Harbor|Dockside|Cheap/.test(n));
+		return {notes: card?.innerText, homebrewOnPage: feats};
+	`);
+	await shot("char-notes.png");
+	// A second session with nothing written: no empty book is kept
+	out.second = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		TBApp.setView("play"); await TBViewPlay.startSession("st-rogue"); await wait(1500);
+		[...document.querySelectorAll("#view-play .btn")].find(b => /End session/.test(b.textContent)).click(); await wait(900);
+		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "End without XP").click(); await wait(1200);
+		return {notesBooks: TBStore.get().books.filter(x => x.notesOf === "st-rogue").length};
+	`);
+	// Tablets in portrait: the full three-column sheet scaled to fit, with touch sizing
+	out.tablet = {};
+	await js(`TBApp.setView("play"); await TBViewPlay.startSession("st-rogue"); await new Promise(r => setTimeout(r, 2000));`);
+	for (const [w, hgt] of [[820, 1180], [768, 1024], [1024, 1366]]) {
+		win.setContentSize(w, hgt);
+		await wait(900);
+		out.tablet[w] = await js(`
+			TBViewPlay.state.mainTab = "actions"; await TBViewPlay.render(); await new Promise(r => setTimeout(r, 900));
+			const s = document.querySelector(".pl-sheet"); s.classList.add("pl-touch");
+			const cols = [...document.querySelectorAll(".pl-grid.session > .pl-col")].map(e => Math.round(e.getBoundingClientRect().width));
+			return {zoom: s.style.zoom, tablet: s.classList.contains("pl-tablet"), phone: document.body.classList.contains("tb-phone"), cols, overflowX: document.querySelector(".pl-body").scrollWidth > document.querySelector(".pl-body").clientWidth + 2};
+		`);
+		await wait(700); win.webContents.invalidate(); await wait(500);
+		await shot(`tablet-${w}.png`);
+	}
+	await js(`TBViewPlay.state.mainTab = "notes"; await TBViewPlay.render(); await new Promise(r => setTimeout(r, 900)); document.querySelector(".pl-sheet").classList.add("pl-touch"); document.querySelector(".pl-menu").scrollIntoView();`);
+	await shot("tablet-1024-notes.png");
+	// Phone layout: the new tabs
+	win.setSize(400, 860);
+	await js(`TBStore.flush && await TBStore.flush();`);
+	await win.loadURL(`${baseUrl}/tb-app.html?phone`);
+	await wait(3500);
+	await js(`TBApp.setView("play"); await TBViewPlay.startSession("st-rogue"); await new Promise(r => setTimeout(r, 2500));`);
+	out.phoneTabs = await js(`return [...document.querySelectorAll(".pm-tabs button")].map(b => b.textContent)`);
+	await js(`[...document.querySelectorAll(".pm-tabs button")].find(b => b.textContent === "Notes")?.click(); await new Promise(r => setTimeout(r, 1200));`);
+	await shot("phone-notes.png");
+	await js(`[...document.querySelectorAll(".pm-tabs button")].find(b => b.textContent === "Stats")?.click(); await new Promise(r => setTimeout(r, 1200));`);
+	await shot("phone-stats.png");
+	fs.writeFileSync(path.join(outDir, "sheet.json"), JSON.stringify(out, null, 2));
+	win.destroy();
+}
+
+module.exports.sheet = sheet;
