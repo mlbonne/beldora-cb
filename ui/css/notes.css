@@ -1,0 +1,125 @@
+/* Notes hub: chat-style notes, diary calendar, important notes, HB counters (notes-hub.js) */
+.tbn-hub { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* Formatting kept in note lines (also used in the Books tab and printed booklets) */
+.tbn-sz-s { font-size: 0.82em; }
+.tbn-sz-l { font-size: 1.3em; line-height: 1.25; }
+mark.tbn-hl-yellow, .tbn-hl-yellow { background: rgba(240, 205, 70, 0.42); color: inherit; padding: 0 2px; border-radius: 2px; }
+mark.tbn-hl-green, .tbn-hl-green { background: rgba(110, 190, 100, 0.38); color: inherit; padding: 0 2px; border-radius: 2px; }
+mark.tbn-hl-blue, .tbn-hl-blue { background: rgba(90, 150, 230, 0.38); color: inherit; padding: 0 2px; border-radius: 2px; }
+mark.tbn-hl-pink, .tbn-hl-pink { background: rgba(230, 110, 170, 0.38); color: inherit; padding: 0 2px; border-radius: 2px; }
+mark.tbn-hl-orange, .tbn-hl-orange { background: rgba(235, 140, 60, 0.42); color: inherit; padding: 0 2px; border-radius: 2px; }
+.tbn-c-red { color: #e0675a; }
+.tbn-c-gold { color: #e2c48a; }
+.tbn-c-green { color: #8cc078; }
+.tbn-c-blue { color: #7fb0ee; }
+.tbn-c-purple { color: #b996e8; }
+.tbn-c-gray { color: #9a9086; }
+
+/* Lines */
+.tbn-chat { display: flex; flex-direction: column; gap: 4px; }
+.tbn-line { display: flex; align-items: flex-start; gap: 8px; padding: 5px 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line-soft); }
+.tbn-line:hover { border-color: var(--line2); }
+.tbn-line input[type=checkbox] { margin-top: 4px; flex: 0 0 auto; }
+.tbn-line-t { flex: 1 1 auto; min-width: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.tbn-line-btns { display: flex; gap: 2px; flex: 0 0 auto; opacity: 0.35; transition: opacity 0.12s; }
+.tbn-line:hover .tbn-line-btns, .tbn-line:focus-within .tbn-line-btns { opacity: 1; }
+.tbn-line.editing { flex-direction: column; align-items: stretch; background: var(--bg2); }
+.tbn-line.pinned { border-color: var(--accent-dim); }
+.tbn-from { font-size: 12px; color: var(--text3); white-space: nowrap; cursor: pointer; margin-top: 2px; }
+.tbn-from:hover { color: var(--accent2); text-decoration: underline; }
+.tbn-line-act { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 6px; }
+.tbn-none { color: var(--text3); font-style: italic; padding: 6px 2px; }
+.tbn-none a { color: var(--accent2); }
+
+/* Editor */
+.tbn-edw { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tbn-compose { margin-top: 10px; }
+.tbn-sendrow { display: flex; gap: 6px; align-items: flex-end; }
+.tbn-sendrow .tbn-ed { flex: 1 1 auto; }
+.tbn-send { flex: 0 0 auto; }
+.tbn-ed { min-height: 34px; max-height: 260px; overflow: auto; padding: 6px 9px; background: var(--bg); border: 1px solid var(--line2); border-radius: var(--radius); outline: none; line-height: 1.45; overflow-wrap: anywhere; cursor: text; }
+.tbn-ed.multi { min-height: 140px; max-height: 420px; }
+.tbn-ed.multi p { margin: 0 0 6px; }
+.tbn-ed:focus { border-color: var(--accent); }
+.tbn-ed.empty::before { content: attr(data-ph); color: var(--text3); pointer-events: none; }
+.tbn-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.tbn-tb { min-width: 28px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text2); cursor: pointer; font: inherit; display: inline-flex; align-items: center; justify-content: center; }
+.tbn-tb:hover { background: var(--bg3); border-color: var(--line2); color: var(--text); }
+.tbn-sep { width: 1px; height: 18px; background: var(--line2); margin: 0 4px; }
+.tbn-tbsz-s { font-size: 11px; }
+.tbn-tbsz-m { font-size: 14px; }
+.tbn-tbsz-l { font-size: 18px; font-weight: 700; }
+.tbn-ic-c { font-weight: 800; text-decoration: underline; text-decoration-color: #e0675a; text-decoration-thickness: 3px; }
+.tbn-popw { position: relative; display: inline-flex; }
+.tbn-pop { display: none; position: absolute; top: 100%; left: 0; z-index: 30; margin-top: 3px; padding: 5px; gap: 3px; background: var(--bg2); border: 1px solid var(--line2); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+.tbn-pop.open { display: flex; }
+.tbn-pop .tbn-tb { min-width: 26px; padding: 0 3px; }
+.tbn-sw { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.25); }
+.tbn-sw-none { background: linear-gradient(135deg, transparent 45%, #e0675a 45%, #e0675a 55%, transparent 55%), var(--bg); }
+.tbn-sw-hl-yellow { background: #e8c63e; } .tbn-sw-hl-green { background: #6ebe64; } .tbn-sw-hl-blue { background: #5a96e6; } .tbn-sw-hl-pink { background: #e66eaa; } .tbn-sw-hl-orange { background: #eb8c3c; }
+.tbn-sw-c-red { background: #e0675a; } .tbn-sw-c-gold { background: #e2c48a; } .tbn-sw-c-green { background: #8cc078; } .tbn-sw-c-blue { background: #7fb0ee; } .tbn-sw-c-purple { background: #b996e8; } .tbn-sw-c-gray { background: #9a9086; }
+
+/* Card headers with several buttons wrap instead of squeezing the title */
+.tbn-hub .card-h { flex-wrap: wrap; row-gap: 6px; }
+.tbn-daycard .card-h h3 { white-space: nowrap; }
+
+/* Calendar */
+.tbn-cal-wrap { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.tbn-cal-scroll { flex: 1 1 auto; min-width: 0; overflow-x: auto; padding-bottom: 4px; }
+.tbn-cal-in { display: inline-flex; flex-direction: column; gap: 3px; }
+.tbn-cal-months { display: flex; gap: 3px; padding-left: 30px; padding-right: 16px; font-size: 11px; color: var(--text2); height: 14px; }
+.tbn-cal-months span { width: 12px; flex: 0 0 12px; white-space: nowrap; overflow: visible; }
+.tbn-cal-grid { display: flex; gap: 3px; }
+.tbn-cal-wd { display: flex; flex-direction: column; gap: 3px; width: 27px; font-size: 11px; color: var(--text2); position: sticky; left: 0; z-index: 1; background: var(--bg2); }
+.tbn-cal-wd span { height: 12px; line-height: 12px; }
+.tbn-week { display: flex; flex-direction: column; gap: 3px; }
+.tbn-day { display: block; width: 12px; height: 12px; padding: 0; border: 0; border-radius: 3px; background: var(--bg4); cursor: pointer; }
+i.tbn-day { cursor: default; display: inline-block; }
+.tbn-day.out { visibility: hidden; }
+.tbn-day.l1 { background: #3c5a2f; } .tbn-day.l2 { background: #4f7d39; } .tbn-day.l3 { background: #64a446; } .tbn-day.l4 { background: #7fd05a; }
+.tbn-day.today { box-shadow: inset 0 0 0 1px var(--accent2); }
+.tbn-day.sel { box-shadow: 0 0 0 2px var(--accent); }
+button.tbn-day:hover { outline: 1px solid var(--text2); }
+.tbn-years { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+.tbn-years button { border: 0; border-radius: 6px; padding: 5px 12px; background: transparent; color: var(--text2); cursor: pointer; font: inherit; font-size: 13px; text-align: left; }
+.tbn-years button:hover { color: var(--text); background: var(--bg3); }
+.tbn-years button.on { background: var(--btn2); color: var(--on-btn); }
+.tbn-legend { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; flex-wrap: wrap; }
+.tbn-legend .muted:first-child { margin-right: 8px; }
+.tbn-dayextra { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text2); }
+
+/* Counters */
+.tbn-counters { display: flex; flex-wrap: wrap; gap: 8px; }
+.tbn-counter { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; background: var(--bg); border: 1px solid var(--line2); border-radius: 10px; flex: 1 1 200px; min-width: 0; max-width: 100%; }
+.tbn-cname { flex: 1 1 auto; min-width: 0; font-family: var(--head); font-size: 13px; color: var(--accent2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbn-cctl { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.tbn-cbtn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line2); background: var(--bg3); color: var(--text); font-size: 17px; line-height: 1; cursor: pointer; }
+.tbn-cbtn:hover:not(:disabled) { border-color: var(--accent); }
+.tbn-cbtn:disabled { opacity: 0.35; cursor: default; }
+input.tbn-cnum { width: 52px; text-align: center; font-size: 17px; font-weight: 700; padding: 2px 4px; -moz-appearance: textfield; appearance: textfield; }
+input.tbn-cnum::-webkit-outer-spin-button, input.tbn-cnum::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tbn-cmax { color: var(--text3); font-size: 13px; }
+.tbn-cman { display: flex; gap: 1px; }
+.tbn-cform { padding: 14px 16px; width: 460px; max-width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.tbn-cform input[type=text] { width: 100%; }
+
+/* Character page: Features & traits | Notes tabs */
+.hfeat-tabs { display: flex; gap: 4px; }
+.hfeat-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text2); padding: 4px 8px; cursor: pointer; font-family: var(--head); font-size: 15px; }
+.hfeat-tabs button.active { color: var(--accent2); border-bottom-color: var(--accent); }
+.hnotes-hub .card.pl-card { background: var(--bg2); }
+
+/* Touch screens: the app's own list for dropdowns (ui.js) */
+.tb-selsheet .modal-b { flex-direction: column; overflow: auto; padding: 6px; min-width: 300px; }
+.tb-selopt { display: block; width: 100%; text-align: left; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--text); font: inherit; font-size: 16px; cursor: pointer; }
+.tb-selopt.on { color: var(--accent2); font-weight: 700; background: var(--accent-bg2); }
+.tb-selopt:disabled { opacity: 0.4; }
+.tb-selgrp { padding: 10px 14px 4px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3); }
+
+@media (max-width: 700px) {
+	.tbn-cal-wrap { flex-direction: column; align-items: stretch; }
+	.tbn-cal-scroll { width: 100%; }
+	.tbn-years { flex-direction: row; flex-wrap: wrap; }
+	.tbn-line-btns { opacity: 1; }
+}

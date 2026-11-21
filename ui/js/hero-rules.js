@@ -84,6 +84,8 @@ globalThis.TBRules = (() => {
 		if (f.level && !f.level.includes(String(sp.level))) return false;
 		if (f.class && !f.class.some(c => (sp._tbClasses || []).some(k => k.startsWith(`${c}|`)))) return false;
 		if (f.school && !f.school.includes(lc(sp.school))) return false;
+		const misc = f["components & miscellaneous"];
+		if (misc && misc.includes("ritual") && !(sp.meta && sp.meta.ritual)) return false;
 		return true;
 	};
 
@@ -243,7 +245,44 @@ globalThis.TBRules = (() => {
 			visit(entry.prepared, "prepared");
 			if (entry.innate) Object.entries(entry.innate).forEach(([lvlKey, v]) => visit({[lvlKey]: v}, "innate"));
 		};
-		const describeFilter = (f) => [f.level ? (f.level[0] === "0" ? "Cantrip" : `Level ${f.level.join("/")}`) : null, f.class ? `${f.class.map(titleCase).join("/")} list` : null, f.school ? f.school.join("/") : null].filter(Boolean).join(" · ");
+		const describeFilter = (f) => [f.level ? (f.level[0] === "0" ? "Cantrip" : `Level ${f.level.join("/")}`) : null, f.class ? `${f.class.map(titleCase).join("/")} list` : "Any class's list", f.school ? f.school.join("/") : null, (f["components & miscellaneous"] || []).includes("ritual") ? "Ritual" : null].filter(Boolean).join(" · ");
+
+		/** Spells an innate grant lets you cast without a slot: name -> {will} or {uses, rest}. */
+		const freeCastsOf = (e) => {
+			const out = new Map();
+			const walk = (v, freq) => {
+				if (Array.isArray(v)) v.forEach(s => { if (typeof s === "string") out.set(lc(s.split("#")[0].split("|")[0]), freq); });
+				else if (v && typeof v === "object") {
+					Object.entries(v).forEach(([k, x]) => {
+						if (k === "daily" || k === "rest") Object.entries(x || {}).forEach(([n, y]) => walk(y, {uses: parseInt(n, 10) || 1, rest: k === "daily" ? "long" : "short"}));
+						else walk(x, freq);
+					});
+				}
+			};
+			Object.values(e.innate || {}).forEach(v => walk(v, {will: true}));
+			return out;
+		};
+		/** Invocations and other optional features: the spells they grant, an Origin feat, the cantrip they improve. */
+		const cantripPicks = [];
+		const optFeatureGrants = async (o, idPrefix, step, group, {ck, cls, level}) => {
+			for (const e of (o.additionalSpells || [])) {
+				const from = G.spells.length;
+				await addSpellGrant({...e, ability: e.ability || cls.spellcastingAbility || undefined}, idPrefix, step, group, o.name, level, {text: o.entries});
+				const free = freeCastsOf(e);
+				G.spells.slice(from).forEach(s => {
+					s.cls = ck;
+					const f = free.get(lc(s.ent.name));
+					if (f) s.free = {...f, via: o.name};
+				});
+			}
+			for (const fp of (o.featProgression || [])) {
+				const id = `${idPrefix}:feat`;
+				const fc = add({id, step, group, title: `${o.name}: ${fp.name || "feat"}`, desc: "Choose an Origin feat.", type: "feat", count: 1, categories: fp.category || ["O"]});
+				for (const r of fc.value) { const f = findFeat(r); if (f) { G.feats.push({ent: f, via: o.name}); await featChoices(f, `${id}:${refKey(f)}`, step, group); } }
+			}
+			const pre = (o.prerequisite || []).flatMap(p => p.spell || []).find(s => s && s.choose && /level=0/.test(s.choose));
+			if (pre) cantripPicks.push({o, id: `${idPrefix}:cantrip`, step, group, attack: /spell attack/i.test(pre.choose), list: lc((/class=([^|]+)/.exec(pre.choose) || [])[1] || "")});
+		};
 
 		// region Species
 		let species = null;
@@ -401,7 +440,12 @@ globalThis.TBRules = (() => {
 				if (!n) continue;
 				const c = add({id: `class:${ck}:of:${lc(p.name).replace(/\W+/g, "-")}`, step, group: grp(0), title: p.name, desc: `Choose ${n}.`, type: "optfeature", count: n, featureTypes: p.featureType});
 				const ofs = await D().loadOptFeatures();
-				c.value.forEach(r => { const o = ofs.find(x => same(x, r)); if (o) G.optfeatures.push({ent: o, via: cls.name}); });
+				for (const r of c.value) {
+					const o = ofs.find(x => same(x, r));
+					if (!o) continue;
+					G.optfeatures.push({ent: o, via: cls.name});
+					await optFeatureGrants(o, `class:${ck}:of:${refKey(o)}`, step, grp(0), {ck, cls, level});
+				}
 			}
 
 			// Features that hide choices: options lists, expertise, scholar
@@ -468,6 +512,17 @@ globalThis.TBRules = (() => {
 					});
 				}
 			}
+		}
+		// Invocations that improve one of your cantrips (Agonizing Blast, Eldritch Spear, Repelling Blast)
+		G.cantripBoosts = [];
+		for (const p of cantripPicks) {
+			const opts = [...new Map(G.spells.filter(s => s.ent.level === 0 && (s.ent.damageInflict || []).length
+				&& (!p.attack || (s.ent.spellAttack || []).length)
+				&& (!p.list || (s.ent._tbClasses || []).some(k => k.startsWith(`${p.list}|`)))).map(s => [lc(s.ent.name), s.ent])).values()];
+			const c = add({id: p.id, step: p.step, group: p.group, title: `${p.o.name}: cantrip`, desc: `Choose one of your ${p.list ? titleCase(p.list) + " " : ""}cantrips that deals damage${p.attack ? " with an attack roll" : ""}.`, type: "pick", count: 1, options: opts.map(e => ({value: lc(e.name), label: e.name}))});
+			// Only one cantrip qualifies: it is the one
+			if (!c.value.length && opts.length === 1) { c.value = [lc(opts[0].name)]; c.complete = true; }
+			c.value.forEach(v => G.cantripBoosts.push({name: p.o.name, spell: v}));
 		}
 		for (const fc of formulaChoices) {
 			const v = Number(char.abilities.base?.[fc.abil]) || 10;
@@ -773,7 +828,13 @@ globalThis.TBRules = (() => {
 
 		// Spells grouped (deduped, keep the first source)
 		const spellMap = new Map();
-		G.spells.forEach(s => { if (!spellMap.has(refKey(s.ent))) spellMap.set(refKey(s.ent), s); });
+		G.spells.forEach(s => {
+			const k = refKey(s.ent);
+			const was = spellMap.get(k);
+			if (!was) spellMap.set(k, s);
+			// Also castable without a slot through an invocation or similar: keep that on the first entry
+			else if (s.free && !was.free) was.free = s.free;
+		});
 		const spellList = [...spellMap.values()].sort((a, b) => a.ent.level - b.ent.level || a.ent.name.localeCompare(b.ent.name));
 		// Spellcasting ability: the main one (a casting class, else the most used grant), and per spell
 		const castNums = (a) => ({ability: a, abilityName: ABIL_NAMES[a], abbr: a.toUpperCase(), mod: mods[a], dc: 8 + pb + mods[a] + fx.spellDc, attack: pb + mods[a] + fx.spellAttack});
@@ -826,7 +887,7 @@ globalThis.TBRules = (() => {
 			armorProf: [...G.armor].map(titleCase), weaponProf: [...G.weapons].map(x => titleCase(D().strip(x))),
 			tools: [...G.tools].map(titleCase), languages: [...G.languages].map(titleCase), resist: [...G.resist, ...fx.resist].map(titleCase), immune: fx.immune.map(titleCase), condImmune: fx.condImmune.map(titleCase), itemEffects: fx,
 			masteries: G.masteries.map(titleCase),
-			feats: G.feats, optfeatures: G.optfeatures, spells: spellList, featureOptions: G.featureOptions,
+			feats: G.feats, optfeatures: G.optfeatures, cantripBoosts: G.cantripBoosts || [], spells: spellList, featureOptions: G.featureOptions,
 			casting, slots, multiclassCaster: casterClasses > 1, spellcasting, spellSources: [...otherSources.values()],
 			attacks, items, cp: char.equipment.cp || 0,
 			details: char.details || {},

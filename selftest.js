@@ -811,8 +811,22 @@ async function sheet ({baseUrl, outDir, appDir}) {
 	out.notes = await tab("notes");
 	out.notesWork = await js(`
 		const wait = (ms) => new Promise(r => setTimeout(r, ms));
-		const ta = document.querySelector(".pl-notes-ta");
-		ta.value = "Met Captain Vex at the harbor.\\n\\nShe owes us 50 gp."; ta.dispatchEvent(new Event("input")); await wait(800);
+		// Chat-style lines: Enter sends each one; one of them highlighted and bold
+		const send = async (txt, fmt) => {
+			const ed = document.querySelector(".pl-notes .tbn-compose .tbn-ed");
+			ed.focus(); document.execCommand("insertText", false, txt);
+			if (fmt) {
+				const r = document.createRange(); r.setStart(ed.firstChild, fmt[0]); r.setEnd(ed.firstChild, fmt[1]);
+				getSelection().removeAllRanges(); getSelection().addRange(r);
+				const tb = ed.closest(".tbn-edw").querySelector(".tbn-toolbar");
+				tb.querySelector(".tbn-sw-hl-yellow").closest("button").click();
+				tb.querySelector("button[title^='Bold']").click();
+			}
+			ed.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true})); await wait(500);
+		};
+		await send("Met Captain Vex at the harbor.");
+		await send("She owes us 50 gp.", [12, 17]);
+		const chat = [...document.querySelectorAll(".pl-notes .tbn-composer .tbn-line-t")].map(e => e.innerHTML);
 		const c = TBStore.char("st-rogue");
 		const b = TBStore.get().books.find(x => x.notesOf === c.id);
 		// Clip mode lands in the session book's wiki chapter
@@ -842,7 +856,7 @@ async function sheet ({baseUrl, outDir, appDir}) {
 		const A = await TBRules.analyze(TBPlay.sessionChar(c));
 		const d = A.derived;
 		return {
-			noteHtml: b.chapters[0].items[0].html, clips: b.chapters.flatMap(ch => ch.items.filter(i => i.kind === "clip").map(i => i.title)),
+			chat, noteHtml: b.chapters[0].items[0].html, clips: b.chapters.flatMap(ch => ch.items.filter(i => i.kind === "clip").map(i => i.title)),
 			homebrewRows: [...document.querySelectorAll(".pl-notes .pl-xp-row b")].map(e => e.textContent),
 			athletics: d.skills.athletics, tools: d.tools, languages: d.languages,
 			homebrewFeatures: TBRules.featureList(d).filter(f => f.homebrew).map(f => f.name + " [" + f.act + "]"),
@@ -851,6 +865,61 @@ async function sheet ({baseUrl, outDir, appDir}) {
 		};
 	`);
 	await shot("sheet-notes.png");
+	// Diary: a day without notes asks first, then takes notes; ticked lines go to Important notes; a counter
+	out.diary = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const c = TBStore.char("st-rogue");
+		const t = new Date(); t.setDate(t.getDate() - 3);
+		const iso = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+		document.querySelector(".pl-notes button.tbn-day[data-iso='" + iso + "']").click(); await wait(500);
+		const ask = document.querySelector(".modal")?.innerText || "";
+		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "Add a note").click(); await wait(600);
+		let card = document.querySelector(".pl-notes .tbn-daycard");
+		const ed = card.querySelector(".tbn-ed.multi");
+		ed.innerHTML = "<p>Ambushed on the coast road</p><p>The map shows <b>three</b> islands</p>";
+		[...card.querySelectorAll("button")].find(b => b.textContent === "Save").click(); await wait(600);
+		card = document.querySelector(".pl-notes .tbn-daycard");
+		const lines = [...card.querySelectorAll(".tbn-line-t")].map(e => e.innerHTML);
+		const cb = card.querySelectorAll(".tbn-line input[type=checkbox]")[1]; cb.checked = true; cb.dispatchEvent(new Event("change", {bubbles: true})); await wait(300);
+		[...document.querySelector(".pl-notes .tbn-daycard").querySelectorAll("button")].find(b => b.textContent.startsWith("★")).click(); await wait(500);
+		const cell = document.querySelector(".pl-notes button.tbn-day[data-iso='" + iso + "']").className;
+		// Edit one line on its own
+		document.querySelector(".pl-notes .tbn-daycard .tbn-line button[title='Edit this line']").click(); await wait(300);
+		const led = document.querySelector(".pl-notes .tbn-daycard .tbn-line.editing .tbn-ed");
+		led.innerHTML = "Ambushed on the <i>north</i> coast road"; led.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true})); await wait(400);
+		const edited = document.querySelector(".pl-notes .tbn-daycard .tbn-line-t").innerHTML;
+		[...document.querySelector(".pl-notes .tbn-daycard").querySelectorAll("button")].find(b => /Close/.test(b.textContent)).click(); await wait(400);
+		// A counter, from the main sheet: +1 twice, capped at its maximum
+		[...document.querySelectorAll("#view-play .pl-topR .tbn-ccard button")].find(b => /Counter/.test(b.textContent)).click(); await wait(400);
+		const ins = document.querySelectorAll(".modal input"); ins[0].value = "Favors owed"; ins[1].value = "2"; ins[3].value = "3";
+		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "Create").click(); await wait(1000);
+		for (let i = 0; i < 2; ++i) { document.querySelector("#view-play .pl-topR .tbn-counter button[title='Add 1']").click(); await wait(800); }
+		return {ask, lines, edited, cell, closed: !document.querySelector(".pl-notes .tbn-daycard"), important: (c.importantNotes || []).map(n => n.html + " @" + n.date),
+			counters: c.counters, topCounter: document.querySelector("#view-play .pl-topR .tbn-counter")?.innerText, diaryDays: document.querySelector(".pl-notes .tbn-calcard .card-h")?.innerText};
+	`);
+	// Notes from before 1.8.3: two books on one day (one per session), paragraphs with line breaks
+	out.legacyNotes = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const c = TBStore.char("st-rogue");
+		const iso = "2026-10-03";
+		const mk = (html, at) => ({id: TBBook.uid(), ownerCharId: null, notesOf: c.id, sessionDate: iso, title: "old", chapters: [{id: TBBook.uid(), genKey: "session-notes", title: "Notes", items: [{id: TBBook.uid(), kind: "note", title: "Session notes", html}]}], hidden: [], createdAt: at, endedAt: at});
+		TBStore.get().books.push(mk("<p>First session<br>still the first line</p><p>Second paragraph</p>", 1000), mk("<p>Later that day <script>x()</script>we rested</p>", 2000));
+		TBStore.changed("book");
+		await TBViewPlay.render(); await wait(800);
+		const cell = document.querySelector(".pl-notes button.tbn-day[data-iso='" + iso + "']");
+		const cls = cell ? cell.className : "missing";
+		cell?.click(); await wait(600);
+		const lines = [...document.querySelectorAll(".pl-notes .tbn-daycard .tbn-line-t")].map(e => e.innerHTML);
+		// Tick the line from the second book and pin it
+		const boxes = document.querySelectorAll(".pl-notes .tbn-daycard .tbn-line input[type=checkbox]");
+		boxes[boxes.length - 1].checked = true; boxes[boxes.length - 1].dispatchEvent(new Event("change", {bubbles: true})); await wait(300);
+		[...document.querySelector(".pl-notes .tbn-daycard").querySelectorAll("button")].find(b => b.textContent.startsWith("★")).click(); await wait(400);
+		const pinned = (c.importantNotes || []).map(n => n.html);
+		[...document.querySelector(".pl-notes .tbn-daycard").querySelectorAll("button")].find(b => /Close/.test(b.textContent)).click(); await wait(300);
+		return {cls, lines, pinned};
+	`);
+	await js(`document.querySelector(".pl-notes .tbn-calcard")?.scrollIntoView();`);
+	await shot("sheet-diary.png");
 	out.actionsHasHomebrew = await js(`TBViewPlay.state.mainTab = "actions"; TBViewPlay.state.actTab = "bonus"; await TBViewPlay.render(); await new Promise(r => setTimeout(r, 900)); return [...document.querySelectorAll(".pl-act .t")].map(e => e.firstChild.textContent)`);
 	// About: change a few details (held in the session)
 	out.about = await tab("about");
@@ -878,15 +947,24 @@ async function sheet ({baseUrl, outDir, appDir}) {
 			clipTarget: TBStore.get().settings.clipTarget, play: {homebrew: TBPlay.stateOf(c).homebrew, about: TBPlay.stateOf(c).about},
 		};
 	`);
-	// Character page: the Notes card, opened
+	// Character page: Features & traits, then the Notes tab (diary, important notes, counters, homebrew)
 	out.charPage = await js(`
 		const wait = (ms) => new Promise(r => setTimeout(r, ms));
 		TBApp.state.activeCharId = "st-rogue"; TBApp.state.charTab = "hero"; TBApp.setView("characters"); await wait(2500);
-		const card = document.querySelector(".hnotes");
-		card?.querySelector(".hnote .hfeat-h")?.click(); await wait(500);
-		card?.scrollIntoView();
 		const feats = [...document.querySelectorAll(".hfeatures .hfeat-h b")].map(e => e.textContent).filter(n => /Harbor|Dockside|Cheap/.test(n));
-		return {notes: card?.innerText, homebrewOnPage: feats};
+		const tabs = [...document.querySelectorAll(".hfeat-tabs button")].map(b => b.textContent);
+		const topCounters = document.querySelector(".hero > .tbn-ccard")?.innerText;
+		[...document.querySelectorAll(".hfeat-tabs button")].find(b => b.textContent === "Notes").click(); await wait(1200);
+		const hub = document.querySelector(".hero .tbn-hub");
+		// Today's notes from the character page (no session running)
+		const ed = hub.querySelector(".tbn-compose .tbn-ed"); ed.focus(); document.execCommand("insertText", false, "Bought rope in town");
+		ed.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true})); await wait(500);
+		const today = new Date(); const iso = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+		document.querySelector(".hero .tbn-hub button.tbn-day[data-iso='" + iso + "']").click(); await wait(600);
+		document.querySelector(".hero .tbn-daycard")?.scrollIntoView();
+		return {tabs, homebrewOnPage: feats, topCounters, cards: [...document.querySelectorAll(".hero .tbn-hub > .card .card-h h3")].map(e => e.textContent),
+			todayLines: [...document.querySelectorAll(".hero .tbn-daycard .tbn-line-t")].map(e => e.innerHTML), oldNotesCard: !!document.querySelector(".hnotes"),
+			booksToday: TBStore.get().books.filter(b => b.notesOf === "st-rogue" && b.sessionDate === iso).length};
 	`);
 	await shot("char-notes.png");
 	// A second session with nothing written: no empty book is kept
@@ -896,6 +974,49 @@ async function sheet ({baseUrl, outDir, appDir}) {
 		[...document.querySelectorAll("#view-play .btn")].find(b => /End session/.test(b.textContent)).click(); await wait(900);
 		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "End without XP").click(); await wait(1200);
 		return {notesBooks: TBStore.get().books.filter(x => x.notesOf === "st-rogue").length};
+	`);
+	// Warlock 2: invocations in the builder, the spell list and the Actions list (Agonizing Blast, Armor of Shadows, Pact of the Tome)
+	out.warlock = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const X = "XPHB";
+		const c = {id: "st-warlock", name: "Selftest Warlock", player: "", classes: [{name: "Warlock", source: X, level: 2}], species: {name: "Human", source: X}, background: {name: "Sage", source: X},
+			abilities: {method: "manual", base: {str: 8, dex: 14, con: 14, int: 10, wis: 12, cha: 16}}, equipment: {items: [], cp: 0}, feats: [], spells: [], optfeatures: [], settings: {}, createdAt: Date.now(),
+			choices: {"class:warlock|xphb:of:eldritch-invocations": [{name: "Agonizing Blast", source: X}, {name: "Armor of Shadows", source: X}, {name: "Pact of the Tome", source: X}],
+				"class:warlock|xphb:cantrips": [{name: "Eldritch Blast", source: X}, {name: "Minor Illusion", source: X}], "class:warlock|xphb:prepared": [{name: "Hex", source: X}, {name: "Charm Person", source: X}, {name: "Armor of Agathys", source: X}],
+				"class:warlock|xphb:of:pact of the tome|xphb:known:_:0": [{name: "Guidance", source: X}, {name: "Fire Bolt", source: X}, {name: "Light", source: X}],
+				"class:warlock|xphb:of:pact of the tome|xphb:prepared:_:0": [{name: "Find Familiar", source: X}, {name: "Detect Magic", source: X}]}};
+		TBStore.get().characters.push(c); TBStore.changed("char");
+		const A = await TBRules.analyze(c);
+		const d = A.derived;
+		TBApp.setView("play"); await TBViewPlay.startSession("st-warlock"); await wait(1500);
+		TBViewPlay.state.mainTab = "actions"; TBViewPlay.state.actTab = "action"; await TBViewPlay.render(); await wait(900);
+		const rows = () => [...document.querySelectorAll("#view-play .pl-act")].map(r => r.querySelector(".t").textContent + " — " + r.querySelector(".d").textContent);
+		const actionRows = rows().filter(t => /Eldritch Blast|Mage Armor|Armor of Shadows/.test(t));
+		TBViewPlay.state.actTab = "other"; await TBViewPlay.render(); await wait(900);
+		const otherRows = rows().filter(t => /Agonizing|Pact of the Tome/.test(t));
+		TBPlay.stateOf(c).physical = false;
+		TBViewPlay.state.actTab = "action"; await TBViewPlay.render(); await wait(900);
+		const row = (re) => [...document.querySelectorAll("#view-play .pl-act")].find(r => re.test(r.querySelector(".t").textContent));
+		row(/^Eldritch Blast/).querySelector("button").click(); await wait(2500);
+		const ebLog = TBPlay.stateOf(c).log.slice(0, 3).map(l => l.text);
+		row(/^Armor of Shadows/).querySelector("button").click(); await wait(700);
+		const slotMenu = document.querySelector(".modal")?.innerText || "";
+		[...document.querySelectorAll(".modal button")].find(b => b.textContent === "Next").click(); await wait(700);
+		[...document.querySelectorAll(".modal button")].find(b => b.textContent.startsWith("Yourself")).click(); await wait(1500);
+		const P = TBPlay.stateOf(c);
+		return {
+			incomplete: A.choices.filter(x => !x.complete && /warlock/.test(x.id)).map(x => x.title),
+			pickedCantrip: A.choices.find(x => /agonizing blast.*:cantrip/.test(x.id))?.value,
+			spells: d.spells.map(s => s.ent.name + (s.free ? " (free: " + s.free.via + ")" : "")), boosts: d.cantripBoosts,
+			actionRows, otherRows, ebLog, slotMenu, pactUsed: P.pactUsed, effects: P.effects.map(e => e.name),
+			ac: document.querySelector("#view-play").innerText.match(/(\\d+)\\s*\\n\\s*Armor Class/i)?.[1],
+		};
+	`);
+	await shot("warlock-actions.png");
+	await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		[...document.querySelectorAll("#view-play .btn")].find(b => /End session/.test(b.textContent)).click(); await wait(900);
+		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "End without XP").click(); await wait(1200);
 	`);
 	// Tablets in portrait: the full three-column sheet scaled to fit, with touch sizing
 	out.tablet = {};
@@ -923,6 +1044,23 @@ async function sheet ({baseUrl, outDir, appDir}) {
 	out.phoneTabs = await js(`return [...document.querySelectorAll(".pm-tabs button")].map(b => b.textContent)`);
 	await js(`[...document.querySelectorAll(".pm-tabs button")].find(b => b.textContent === "Notes")?.click(); await new Promise(r => setTimeout(r, 1200));`);
 	await shot("phone-notes.png");
+	// A sideways drag on the diary calendar scrolls it; it must not switch the phone tab
+	out.phoneSwipe = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const fire = async (el) => {
+			const r = el.getBoundingClientRect();
+			const t0 = new Touch({identifier: 1, target: el, clientX: r.x + r.width * 0.8, clientY: r.y + 20});
+			const t1 = new Touch({identifier: 1, target: el, clientX: r.x + r.width * 0.1, clientY: r.y + 22});
+			el.dispatchEvent(new TouchEvent("touchstart", {touches: [t0], changedTouches: [t0], bubbles: true}));
+			el.dispatchEvent(new TouchEvent("touchend", {touches: [], changedTouches: [t1], bubbles: true}));
+			await wait(900);
+			return document.querySelector(".pm-tabs button.active")?.textContent;
+		};
+		const cal = document.querySelector(".tbn-cal-scroll");
+		const onCalendar = cal ? await fire(cal) : "no calendar";
+		const onCard = await fire(document.querySelector(".tbn-composer .card-h"));
+		return {onCalendar, onCard};
+	`);
 	await js(`[...document.querySelectorAll(".pm-tabs button")].find(b => b.textContent === "Stats")?.click(); await new Promise(r => setTimeout(r, 1200));`);
 	await shot("phone-stats.png");
 	fs.writeFileSync(path.join(outDir, "sheet.json"), JSON.stringify(out, null, 2));

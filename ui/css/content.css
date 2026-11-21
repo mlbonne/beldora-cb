@@ -248,3 +248,11 @@ body.tb-print.tb-theme-clean { --tb-paper: #ffffff; --tb-table-head: #ece6dc; --
 .tb-print .tb-progression, .tb-print .tb-kv, .tb-print .tb-spelllist { break-inside: avoid; }
 .tb-print table { word-break: normal; overflow-wrap: anywhere; }
 /* endregion */
+
+/* Session notes formatting (notes-hub.js) */
+.tbn-sz-s { font-size: 0.82em; }
+.tbn-sz-l { font-size: 1.25em; }
+mark.tbn-hl-yellow { background: #f3e08a; } mark.tbn-hl-green { background: #c6e6b6; } mark.tbn-hl-blue { background: #c2d8f3; } mark.tbn-hl-pink { background: #f3c2dc; } mark.tbn-hl-orange { background: #f5cf9e; }
+mark[class^="tbn-hl-"] { color: inherit; padding: 0 1px; }
+.tbn-c-red { color: #a8352a; } .tbn-c-gold { color: #8a6a1e; } .tbn-c-green { color: #3f7a2c; } .tbn-c-blue { color: #2c5f9e; } .tbn-c-purple { color: #6b3fa0; } .tbn-c-gray { color: #6b625a; }
+p.tbn-line { margin: 0 0 0.35em; }

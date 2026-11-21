@@ -5,7 +5,7 @@ globalThis.TBViewHero = (() => {
 	const {h, clear} = TBUI;
 	const R = () => TBRules;
 	const D = () => TBData;
-	const ui = {featFilter: "All", expanded: new Set()};
+	const ui = {featFilter: "All", expanded: new Set(), featTab: "features"};
 
 	const tile = (label, value, sub) => h("div.htile", h("div.htile-v", value), h("div.htile-l", label), sub ? h("div.htile-s", sub) : null);
 
@@ -152,7 +152,51 @@ globalThis.TBViewHero = (() => {
 			fill(el, ui.expanded.has(id));
 			return el;
 		}));
-		const features = h("div.hcard.hfeatures", h("div.row", h("h3.grow", "Features & traits"), filterBar), featList);
+		// Features & traits | Notes (the notes hub: diary, important notes, HB counters, homebrew)
+		const tabBtn = (k, l) => h("button", {class: ui.featTab === k ? "active" : "", on: {click: () => { ui.featTab = k; render(root, char); }}}, l);
+		const tabs = h("div.hfeat-tabs.grow", tabBtn("features", "Features & traits"), tabBtn("notes", "Notes"));
+		const sessionBookId = char.play && char.play.notesBookId && TBStore.book(char.play.notesBookId) ? char.play.notesBookId : null;
+		const homebrewCard = () => {
+			const list = (char.homebrew || []).filter(x => x && x.name);
+			const add = () => TBNotes.homebrewModal({
+				note: "Added to the character right away: items go into the equipment, feats, traits, actions and proficiencies show on the sheet.",
+				onAdd: (hb, {qty}) => {
+					if (hb.type === "item") ((char.equipment ||= {items: []}).items ||= []).push({name: hb.name, source: "", qty, custom: true, homebrew: true, desc: hb.desc, hbId: hb.id});
+					(char.homebrew ||= []).push(hb);
+					TBApp.charChanged(char);
+					render(root, char);
+				},
+			});
+			const remove = async (x) => {
+				if (!(await TBUI.confirm("Remove homebrew", `Remove “${x.name}” from ${char.name || "the character"}?`, {okLabel: "Remove", danger: true}))) return;
+				char.homebrew = (char.homebrew || []).filter(y => y.id !== x.id);
+				TBApp.charChanged(char);
+				render(root, char);
+			};
+			return h("div.card.pl-card", h("div.card-h", h("h3", "Homebrew"), h("span.muted", ` · ${list.length}`), h("div.spacer"), h("button.btn.small.primary", {on: {click: add}}, "+ Add homebrew")),
+				h("div.card-b", ...(list.length ? list.map(x => {
+					const id = `hb:${x.id}`;
+					const el = h("div.hfeat");
+					const fill = (open) => {
+						el.querySelector(".hfeat-b")?.remove();
+						el.classList.toggle("open", open);
+						if (open) { const b = h("div.hfeat-b"); b.innerHTML = x.desc ? TBNotes.textToHtml(x.desc) : "<p><i>No description.</i></p>"; el.appendChild(b); }
+					};
+					el.appendChild(h("div.hfeat-h", {on: {click: (e) => { if (e.target.closest("button")) return; const open = !ui.expanded.has(id); open ? ui.expanded.add(id) : ui.expanded.delete(id); fill(open); }}},
+						h("span.kindtag.homebrew", TBNotes.HB_LABEL[x.type] || x.type), h("span.grow", h("b", x.name)),
+						h("button.btn.ghost.small", {title: "Remove", on: {click: () => remove(x)}}, "✕")));
+					fill(ui.expanded.has(id));
+					return el;
+				}) : [h("div.pick-empty", "Your own items, feats, traits, actions and proficiencies.")])));
+		};
+		const features = ui.featTab === "notes"
+			? h("div.hcard.hfeatures.hnotes-hub", h("div.row", tabs), TBNotes.hub(char, {
+				sessionBook: sessionBookId ? () => TBStore.book(sessionBookId) : null,
+				openBook: (id) => TBApp.openBook(id),
+				onCounters: () => render(root, char),
+				extras: () => [homebrewCard()],
+			}))
+			: h("div.hcard.hfeatures", h("div.row", tabs, filterBar), featList);
 		// endregion
 
 		// region Proficiencies & inventory
@@ -167,48 +211,13 @@ globalThis.TBViewHero = (() => {
 		);
 		// endregion
 
-		// region Notes: one book per Play session, dated (newest first)
-		const noteBooks = TBStore.get().books.filter(b => b.notesOf === char.id)
-			.sort((a, b) => String(b.sessionDate || "").localeCompare(String(a.sessionDate || "")) || (b.createdAt || 0) - (a.createdAt || 0));
-		const dayLabel = (iso) => { try { return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", {weekday: "short", day: "numeric", month: "long", year: "numeric"}); } catch (e) { return iso || ""; } };
-		const noteEntry = (b) => {
-			const id = `notes:${b.id}`;
-			const clips = b.chapters.filter(c => c.genKey !== "session-notes" && c.genKey !== "session-homebrew").flatMap(c => c.items.filter(i => i.kind === "clip"));
-			const noteHtml = b.chapters.filter(c => c.genKey === "session-notes").flatMap(c => c.items.filter(i => i.kind === "note")).map(i => i.html).join("");
-			const hbHtml = b.chapters.filter(c => c.genKey === "session-homebrew").flatMap(c => c.items.map(i => i.html)).join("");
-			const el = h("div.hfeat.hnote");
-			const fill = (open) => {
-				el.querySelector(".hfeat-b")?.remove();
-				el.classList.toggle("open", open);
-				if (!open) return;
-				const body = h("div.hfeat-b");
-				body.innerHTML = TBSan.clean(noteHtml || "<p><i>No written notes.</i></p>")
-					+ (clips.length ? `<div class="ve-rd__h"><b>From the wiki</b></div><p>${clips.map(i => TBBook.esc(i.title)).join(" · ")}</p>` : "")
-					+ (hbHtml ? `<div class="ve-rd__h"><b>Homebrew</b></div>${TBSan.clean(hbHtml)}` : "");
-				body.appendChild(h("div", {style: {marginTop: "6px"}}, h("button.btn.small", {on: {click: () => TBApp.openBook(b.id)}}, "📖 Open in Books")));
-				el.appendChild(body);
-			};
-			el.appendChild(h("div.hfeat-h", {on: {click: () => { const open = !ui.expanded.has(id); open ? ui.expanded.add(id) : ui.expanded.delete(id); fill(open); }}},
-				h("span.kindtag.note", "Session"),
-				h("span.grow", h("b", dayLabel(b.sessionDate)), b.endedAt ? null : h("span.acttag", {style: {marginLeft: "6px"}}, "in progress")),
-				h("span.muted", {style: {fontSize: "12px"}}, [clips.length ? `${clips.length} clip${clips.length === 1 ? "" : "s"}` : "", hbHtml ? "homebrew" : ""].filter(Boolean).join(" · ")),
-			));
-			fill(ui.expanded.has(id));
-			return el;
-		};
-		const notesOpen = !ui.notesClosed;
-		const notes = noteBooks.length ? h("div.hcard.hnotes",
-			h("div.row.hnotes-h", {style: {cursor: "pointer"}, on: {click: () => { ui.notesClosed = notesOpen; render(root, char); }}},
-				h("h3.grow", `${notesOpen ? "▾" : "▸"} Notes`), h("span.muted", `${noteBooks.length} session${noteBooks.length === 1 ? "" : "s"}`)),
-			notesOpen ? h("div.hfeats", ...noteBooks.map(noteEntry)) : null,
-		) : null;
-		// endregion
 
 		const page = h("div.hero",
 			header,
 			h("div.hstats", abil, tiles),
+			TBNotes.countersCard(char, {onChange: () => render(root, char), empty: false}),
 			h("div.hgrid",
-				h("div.hcolA", skills, notes, profs, inv),
+				h("div.hcolA", skills, profs, inv),
 				h("div.hcolB", attacks, spells, features),
 			),
 		);

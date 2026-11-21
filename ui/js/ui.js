@@ -134,5 +134,58 @@ globalThis.TBUI = (() => {
 		reader.readAsDataURL(file);
 	});
 
-	return {h, clear, toast, modal, prompt, confirm, fragFrame, debounce, fileToDataUrl};
+	// region Dropdowns on touch screens
+	/**
+	 * Tablets running the web app: native <select> pickers can fail to open or to apply the choice (reported on a
+	 * tablet in the Add homebrew form). A tap on any dropdown opens the app's own list instead; picking sets the
+	 * value and fires the usual input/change events, so the code behind each dropdown doesn't change.
+	 * The Android app keeps the system pickers.
+	 */
+	const selectSheet = (sel) => {
+		const label = sel.closest("label")?.querySelector("span")?.textContent || sel.getAttribute("aria-label") || sel.title || "Choose";
+		let m = null;
+		const pick = (opt) => {
+			m.close();
+			if (sel.value === opt.value && opt.selected) return;
+			sel.value = opt.value;
+			sel.dispatchEvent(new Event("input", {bubbles: true}));
+			sel.dispatchEvent(new Event("change", {bubbles: true}));
+		};
+		const row = (opt) => h("button.tb-selopt", {type: "button", class: opt.selected ? "on" : "", disabled: opt.disabled, on: {click: () => pick(opt)}}, opt.textContent);
+		const items = [];
+		[...sel.children].forEach(ch => {
+			if (ch.tagName === "OPTGROUP") { items.push(h("div.tb-selgrp", ch.label)); [...ch.children].forEach(o => items.push(row(o))); } else if (ch.tagName === "OPTION" && !ch.hidden) items.push(row(ch));
+		});
+		m = modal({title: label.replace(/[:…]+$/, ""), className: "tb-selsheet", body: items});
+		setTimeout(() => m.el.querySelector(".tb-selopt.on")?.scrollIntoView({block: "center"}), 30);
+	};
+	const touchSelects = () => {
+		if (!("ontouchstart" in window) || window.Capacitor?.isNativePlatform?.()) return;
+		let start = null;
+		const target = (e) => {
+			const sel = e.target.closest && e.target.closest("select");
+			return sel && !sel.disabled && !sel.multiple && !sel.closest(".tb-native-select") ? sel : null;
+		};
+		// Stop the system picker (and the focus that opens it) on the tap itself
+		document.addEventListener("touchstart", (e) => {
+			const sel = target(e);
+			if (!sel) return;
+			e.preventDefault();
+			start = {sel, x: e.touches[0].clientX, y: e.touches[0].clientY};
+		}, {passive: false, capture: true});
+		document.addEventListener("touchend", (e) => {
+			if (!start) return;
+			const s = start;
+			start = null;
+			const t = e.changedTouches[0];
+			if (Math.hypot(t.clientX - s.x, t.clientY - s.y) > 12) return;
+			e.preventDefault();
+			selectSheet(s.sel);
+		}, {passive: false, capture: true});
+		document.addEventListener("touchcancel", () => { start = null; }, {capture: true});
+	};
+	touchSelects();
+	// endregion
+
+	return {h, clear, toast, modal, prompt, confirm, fragFrame, debounce, fileToDataUrl, selectSheet};
 })();

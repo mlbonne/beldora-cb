@@ -488,6 +488,7 @@ globalThis.TBPlay = (() => {
 			if (c.name === "Fighter" && /Battle Master/i.test(c.subclass || "") && c.level >= 3) out.push({key: "pool:superiority dice", name: `Superiority Dice (${c.level >= 18 ? "d12" : c.level >= 10 ? "d10" : "d8"})`, max: c.level >= 15 ? 6 : c.level >= 7 ? 5 : 4, rest: "short", group: c.subclass, pool: true});
 			if (c.name === "Paladin") out.push({key: "pool:lay on hands", name: "Lay on Hands (HP)", max: 5 * c.level, rest: "long", group: c.name, pool: true, big: true});
 		});
+		(d.spells || []).filter(s => s.free && s.free.uses).forEach(s => out.push({key: `free:${lc(s.ent.name)}`, name: `${s.ent.name} (free cast)`, max: s.free.uses, rest: s.free.rest === "short" ? "short" : "long", group: s.free.via}));
 		const pools = new Set(out.map(o => o.key));
 		R().featureList(d).forEach(f => {
 			const poolOf = POOL_OF_FEATURE.find(([re]) => re.test(f.name));
@@ -526,6 +527,14 @@ globalThis.TBPlay = (() => {
 	/** Slot options for a spell: [{label, level, kind}] (pact slots cast at their own level). */
 	const castOptions = (char, d, spell) => {
 		const opts = [];
+		// Invocations and similar: cast without a slot, at will or a few times per rest
+		const free = (d.spells.find(s => s.ent === spell) || {}).free;
+		if (free && free.will) opts.push({label: `At will through ${free.via} (no slot)`, level: spell.level, kind: "free", via: free.via, ok: true});
+		else if (free && free.uses) {
+			const key = `free:${lc(spell.name)}`;
+			const left = Math.max(0, free.uses - (stateOf(char).uses[key] || 0));
+			opts.push({label: `Free through ${free.via} (${left}/${free.uses} per ${free.rest === "short" ? "Short or Long" : "Long"} Rest)`, level: spell.level, kind: "freeuse", key, via: free.via, ok: left > 0});
+		}
 		slotsOf(d).filter(s => s.level >= spell.level).forEach(s => opts.push({label: `Level ${s.level} slot (${slotsLeft(char, d, s.level)}/${s.max} left)`, level: s.level, kind: "slot", ok: slotsLeft(char, d, s.level) > 0}));
 		const p = pactOf(d);
 		if (p && p.level >= spell.level) opts.push({label: `Pact slot, level ${p.level} (${pactLeft(char, d)}/${p.slots} left)`, level: p.level, kind: "pact", ok: pactLeft(char, d) > 0});
