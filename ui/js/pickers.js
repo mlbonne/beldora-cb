@@ -76,7 +76,7 @@ globalThis.TBPickers = (() => {
 						dblclick: () => { selIx = ix; doPick(); },
 					},
 				},
-				h("span.nm", e.name),
+				h("span.nm", e.name, e._tbBrew ? h("span.tag.brew", {title: "From an installed 5etools homebrew file"}, "5etools homebrew") : null, e._tbHR ? h("span.tag.hr", {title: "A house rule made for a character"}, "House rule") : null),
 				chosen ? h("span.have", "✓") : null,
 				opts.info ? h("span.info", opts.info(e)) : null,
 				h("span.src", D().sourceShort(e.source)),

@@ -35,19 +35,35 @@ globalThis.TBRules = (() => {
 	// region Data
 	const _cache = {};
 	const once = (k, fn) => (_cache[k] = _cache[k] || fn());
-	const loadItems = () => once("items", async () => {
+	/** Items with the house rules of every character added (the base list is cached; this memo follows the records). */
+	let _itemsMemo = {key: null, val: null};
+	const loadItems = async () => {
+		const base = await loadItemsBase();
+		const hr = globalThis.TBHouse ? TBHouse.list("item") : [];
+		if (!hr.length) return base;
+		const key = hr.map(i => i.source).join(",") + "|" + hr.map(i => i.name).join(",");
+		if (_itemsMemo.key === key && _itemsMemo.base === base) return _itemsMemo.val;
+		const byKey = new Map(base.byKey);
+		hr.forEach(i => byKey.set(refKey(i), i));
+		_itemsMemo = {key, base, val: {...base, all: [...base.all, ...hr], byKey}};
+		return _itemsMemo.val;
+	};
+	const loadItemsBase = () => once("items", async () => {
 		const base = (await DataUtil.loadJSON("data/items-base.json"));
 		// The merged list: base items, magic items and every specific variant (+1 Longsword, Mithral Plate…)
 		let items;
 		try { items = await Renderer.item.pBuildList(); } catch (e) { items = [...(base.baseitem || []), ...((await DataUtil.loadJSON("data/items.json")).item || [])]; }
 		const props = {};
 		(base.itemProperty || []).forEach(p => { props[`${lc(p.abbreviation)}|${lc(p.source)}`] = p; });
+		// Installed 5etools homebrew items (needs the site's list first: masteries and properties)
+		if (globalThis.TBBrew) { try { items = [...items, ...await TBBrew.items()]; } catch (e) { /* none */ } }
 		const all = items.filter(i => i.name && !i._isItemGroup);
 		const byKey = new Map();
 		all.forEach(i => { if (!byKey.has(refKey(i))) byKey.set(refKey(i), i); });
 		return {all, byKey, props, mastery: base.itemMastery || []};
 	});
-	const loadLanguages = () => once("langs", async () => ((await DataUtil.loadJSON("data/languages.json")).language || []));
+	const loadLanguages = async () => [...await loadLanguagesBase(), ...(globalThis.TBHouse ? TBHouse.list("language") : [])];
+	const loadLanguagesBase = () => once("langs", async () => [...((await DataUtil.loadJSON("data/languages.json")).language || []), ...(globalThis.TBBrew ? await TBBrew.get("language") : [])]);
 	const ensure = () => Promise.all([D().loadClasses(), D().loadRaces(), D().loadBackgrounds(), D().loadFeats(), D().loadOptFeatures(), D().loadSpells(), loadItems(), loadLanguages()]);
 
 	/** Base species (no lineage versions) for the option grid. */
@@ -58,6 +74,7 @@ globalThis.TBRules = (() => {
 	// region Character normalisation (also migrates characters made before the builder)
 	const normalize = (char) => {
 		char.choices = char.choices || {};
+		char.houseRules = Array.isArray(char.houseRules) ? char.houseRules : [];
 		char.abilities = char.abilities || {method: "standard", base: {}};
 		char.equipment = char.equipment || {items: [], cp: 0, startingApplied: {}};
 		char.details = char.details || {};
@@ -101,7 +118,7 @@ globalThis.TBRules = (() => {
 		const {all} = await loadItems();
 		const typeOf = (i) => String(i.type || "").split("|")[0];
 		const want = {anyGamingSet: ["GS"], anyArtisansTool: ["AT"], anyMusicalInstrument: ["INS"], anyTool: ["AT", "GS", "INS", "T"]}[kind] || ["AT", "GS", "INS", "T"];
-		const items = all.filter(i => want.includes(typeOf(i)) && (i.source === "XPHB" || !D().isModern("XPHB")));
+		const items = all.filter(i => want.includes(typeOf(i)) && (i.source === "XPHB" || i._tbBrew || !D().isModern("XPHB")));
 		return [...new Map(items.map(i => [lc(i.name), i])).values()].sort((a, b) => a.name.localeCompare(b.name)).map(i => ({value: lc(i.name), label: i.name}));
 	};
 
@@ -427,7 +444,7 @@ globalThis.TBRules = (() => {
 				const n = Object.entries(prog).filter(([l]) => Number(l) <= level).map(([, v]) => v).pop() || 0;
 				if (n) {
 					const {all} = await loadItems();
-					const weapons = all.filter(i => i.weapon && i.mastery && (legacy || i.source === "XPHB")).sort((a, b) => a.name.localeCompare(b.name));
+					const weapons = all.filter(i => i.weapon && i.mastery && (legacy || i.source === "XPHB" || i._tbBrew)).sort((a, b) => a.name.localeCompare(b.name));
 					add({id: `class:${ck}:mastery`, step, group: grp(1), level: 1, title: "Weapon Mastery", desc: `Choose ${n} kinds of weapons whose mastery properties you can use.`, type: "pick", count: n, options: weapons.map(w => ({value: lc(w.name), label: w.name, info: (w.mastery || []).map(m => m.split("|")[0]).join(", ")}))})
 						.value.forEach(w => G.masteries.push(w));
 				}
@@ -537,18 +554,24 @@ globalThis.TBRules = (() => {
 		// endregion
 
 		// region Details: languages
-		const langs = (await loadLanguages()).filter(l => (legacy || l.source === "XPHB") && l.type === "standard" && lc(l.name) !== "common");
+		const hrOk = (l) => !l._tbHR || TBHouse.visible(l, charIn);
+		const langs = (await loadLanguages()).filter(l => hrOk(l) && (legacy || l.source === "XPHB" || l._tbBrew || l._tbHR) && (l.type === "standard" || l._tbBrew || l._tbHR) && lc(l.name) !== "common");
 		add({id: "details:languages", step: "details", group: "Languages", title: "Languages", desc: "You know Common plus two standard languages.", type: "pick", count: 2, options: langs.map(l => ({value: lc(l.name), label: l.name}))}).value.forEach(l => G.languages.add(l));
 		// endregion
 
 		// Extras added by hand (also characters made before the builder)
-		(char.feats || []).forEach(r => { const f = findFeat(r); if (f && !G.feats.some(x => same(x.ent, f))) G.feats.push({ent: f, via: "Extra"}); });
+		for (const r of (char.feats || [])) {
+			const f = findFeat(r);
+			if (!f || G.feats.some(x => same(x.ent, f))) continue;
+			G.feats.push({ent: f, via: "Extra"});
+			await featChoices(f, `extra:feat:${refKey(f)}`, "details", `Extra feat: ${f.name}`);
+		}
 		const ofsAll = await D().loadOptFeatures();
 		(char.optfeatures || []).forEach(r => { const o = ofsAll.find(x => same(x, r)); if (o && !G.optfeatures.some(x => same(x.ent, o))) G.optfeatures.push({ent: o, via: "Extra"}); });
 		(char.spells || []).forEach(r => { const s = spellsAll.find(x => same(x, r)); if (s && !G.spells.some(x => same(x.ent, s))) G.spells.push({ent: s, via: "Extra"}); });
 
 		// Resolve skill-dependent option lists now that proficiencies are known
-		const langOptions = (await loadLanguages()).filter(l => legacy || l.source === "XPHB").map(l => ({value: lc(l.name), label: l.name}));
+		const langOptions = (await loadLanguages()).filter(l => hrOk(l) && (legacy || l.source === "XPHB" || l._tbBrew || l._tbHR)).map(l => ({value: lc(l.name), label: l.name}));
 		for (const c of choices) {
 			if (c.options === "proficientSkills") c.options = skillOptions([...G.skills]);
 			if (c.options === "languages") c.options = langOptions;
@@ -846,7 +869,8 @@ globalThis.TBRules = (() => {
 		const spellcasting = mainAbility ? {...castNums(mainAbility), source: mainCast ? mainCast.label : spellList.find(s => s.ability === mainAbility)?.via || ""} : null;
 		const otherSources = new Map();
 		spellList.forEach(s => {
-			const a = s.ability || (s.cls && byClass[s.cls]) || mainAbility;
+			// A spell added by hand to a character with no spellcasting (scroll, DM grant, house rule) uses the best of Int/Wis/Cha
+			const a = s.ability || (s.cls && byClass[s.cls]) || mainAbility || ["int", "wis", "cha"].sort((x, y) => mods[y] - mods[x])[0];
 			s.cast = a ? castNums(a) : null;
 			s.altAbility = !!(a && mainAbility && a !== mainAbility);
 			if (s.altAbility) {
@@ -876,7 +900,7 @@ globalThis.TBRules = (() => {
 			speciesEnt: species,
 			background: background?.name || null,
 			backgroundEnt: background,
-			classes: classes.map(c => ({name: c.cls.name, level: c.level, subclass: c.subclass?.name || null, hd: c.cls.hd ? `d${c.cls.hd.faces}` : "d8", ent: c.cls, subclassEnt: c.subclass, features: c.features, core: c.core, cols: c.cols, isFirst: c.isFirst})),
+			classes: classes.map(c => ({name: c.cls.name, hrTitle: c.cls._hrTitle || null, level: c.level, subclass: c.subclass?.name || null, hd: c.cls.hd ? `d${c.cls.hd.faces}` : "d8", ent: c.cls, subclassEnt: c.subclass, features: c.features, core: c.core, cols: c.cols, isFirst: c.isFirst})),
 			classLine: classes.map(c => `${c.cls.name} ${c.level}`).join(" / "),
 			base, scores, mods, saves, skills,
 			hp, hitDice, ac, acNote,
@@ -1122,11 +1146,11 @@ globalThis.TBRules = (() => {
 				const sig = `${f.name}`;
 				if (seen.has(sig) && /Ability Score Improvement|Epic Boon/i.test(f.name)) return;
 				seen.add(sig);
-				out.push({name: f.name, kind: f.isSubclass ? "Subclass" : "Class", group: f.isSubclass ? (c.subclass || c.name) : c.name, level: f.level, entries: f.entries, key: f.key, ...activationOf(f.entries)});
+				out.push({name: f.name, kind: f.isSubclass ? "Subclass" : "Class", group: f.isSubclass ? (c.subclass || c.name) : c.name, level: f.level, entries: f.entries, key: f.key, brew: !!(globalThis.TBBrew && TBBrew.isBrew(f.source)), ...activationOf(f.entries)});
 			});
 		});
-		if (d.speciesEnt) (d.speciesEnt.entries || []).filter(e => e && e.name).forEach(e => out.push({name: e.name, kind: "Species", group: d.species, entries: e.entries || [], key: `species:${refKey(d.speciesEnt)}`, ...activationOf(e.entries)}));
-		d.feats.forEach(f => out.push({name: f.ent.name, kind: "Feat", group: f.via, entries: f.ent.entries || [], key: `feat:${refKey(f.ent)}`, ...activationOf(f.ent.entries)}));
+		if (d.speciesEnt) (d.speciesEnt.entries || []).filter(e => e && e.name).forEach(e => out.push({name: e.name, kind: "Species", group: d.species, entries: e.entries || [], key: `species:${refKey(d.speciesEnt)}`, brew: !!d.speciesEnt._tbBrew, ...activationOf(e.entries)}));
+		d.feats.forEach(f => out.push({name: f.ent.name, kind: "Feat", group: f.via, entries: f.ent.entries || [], key: `feat:${refKey(f.ent)}`, brew: !!f.ent._tbBrew, ...activationOf(f.ent.entries)}));
 		d.optfeatures.forEach(o => out.push({name: o.ent.name, kind: "Option", group: (o.ent.featureType || []).map(t => { try { return Parser.optFeatureTypeToFull(t); } catch (e) { return t; } }).join(", "), entries: o.ent.entries || [], key: `optfeature:${refKey(o.ent)}`, ...activationOf(o.ent.entries)}));
 		// Homebrew feats, features and actions (skills, tools and languages are proficiencies, not features)
 		(d.homebrew || []).filter(x => ["feat", "feature", "action"].includes(x.type)).forEach(x => {

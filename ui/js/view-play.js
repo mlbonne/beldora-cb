@@ -1319,7 +1319,7 @@ globalThis.TBViewPlay = (() => {
 			const usable = f.act !== "Passive" || f.uses || E_().handlerFor({feature: f});
 			return expander(`feat:${f.kind}:${f.name}:${f.level || ""}`, [
 				h("span.kindtag", {class: f.kind.toLowerCase()}, f.kind === "Class" || f.kind === "Subclass" ? `${f.kind} ${f.level}` : f.kind),
-				h("span.grow", h("b", f.name), h("span.muted", ` · ${f.group}`), h("div.pl-xp-sum", res ? `${P_().remaining(c, res)}/${res.max} ${res.name}` : summary(f.entries, 120))),
+				h("span.grow", h("b", f.name), h("span.muted", ` · ${f.group}`), f.brew ? h("span.tag.brew", "5etools homebrew") : null, h("div.pl-xp-sum", res ? `${P_().remaining(c, res)}/${res.max} ${res.name}` : summary(f.entries, 120))),
 				f.act !== "Passive" ? h("span.acttag", f.act) : null,
 				usable ? h("button.btn.small", {class: !res || P_().remaining(c, res) ? "primary" : "", disabled: res && !P_().remaining(c, res), on: {click: () => useFeature(c, d, f)}}, "Use") : null,
 			], (b) => { b.innerHTML = entriesHtml(f.entries); b.classList.add("hfeat-b"); });

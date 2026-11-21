@@ -16,9 +16,11 @@ globalThis.TBData = (() => {
 		try { return !SourceUtil.isClassicSource(source); } catch (e) { return true; }
 	};
 	const sourceShort = (source) => {
+		if (/^HR-/.test(source || "")) return "HR";
 		try { return Parser.sourceJsonToAbv(source); } catch (e) { return source; }
 	};
 	const sourceFull = (source) => {
+		if (/^HR-/.test(source || "")) return "House rule";
 		try { return Parser.sourceJsonToFull(source); } catch (e) { return source; }
 	};
 	// endregion
@@ -70,8 +72,14 @@ globalThis.TBData = (() => {
 	// endregion
 
 	// region Loading
+	/** Installed 5etools homebrew of one kind (flagged `_tbBrew`); [] when there is none. */
+	const brew = async (prop) => (globalThis.TBBrew ? TBBrew.get(prop) : []);
+
 	const loadClasses = () => once("classes", async () => {
-		const raw = await DataUtil.class.loadRawJSON();
+		const site = await DataUtil.class.loadRawJSON();
+		// Homebrew classes, subclasses (also for official classes) and their features join the site's
+		const [bc, bsc, bcf, bscf] = globalThis.TBBrew ? await Promise.all(["class", "subclass", "classFeature", "subclassFeature"].map(p => TBBrew.raw(p))) : [[], [], [], []];
+		const raw = {class: [...site.class, ...bc], subclass: [...site.subclass, ...bsc], classFeature: [...site.classFeature, ...bcf], subclassFeature: [...site.subclassFeature, ...bscf]};
 		const cf = new Map();
 		raw.classFeature.forEach(f => cf.set(lc(`${f.name}|${f.className}|${f.classSource}|${f.level}|${f.source}`), f));
 		const scf = new Map();
@@ -80,7 +88,10 @@ globalThis.TBData = (() => {
 		return {classes, subclasses: raw.subclass, cf, scf};
 	});
 
-	const loadRaces = () => once("races", async () => {
+	/** House rules of a kind, from every character (pickers show each character its own); compiled fresh each call. */
+	const house = (kind) => (globalThis.TBHouse ? TBHouse.list(kind) : []);
+	const loadRaces = async () => [...await loadRacesBase(), ...house("race")];
+	const loadRacesBase = () => once("races", async () => {
 		const json = await DataUtil.race.loadJSON();
 		const out = [];
 		json.race.forEach(r => {
@@ -89,20 +100,22 @@ globalThis.TBData = (() => {
 				DataUtil.proxy.getVersions("race", r).forEach(v => out.push(v));
 			} catch (e) { /* no versions */ }
 		});
+		if (globalThis.TBBrew) out.push(...await TBBrew.races());
 		return out;
 	});
 
-	const loadSimple = (path, prop) => once(`simple:${path}`, async () => (await DataUtil.loadJSON(path))[prop] || []);
-	const loadBackgrounds = () => loadSimple("data/backgrounds.json", "background");
-	const loadFeats = () => loadSimple("data/feats.json", "feat");
+	const loadSimple = (path, prop) => once(`simple:${path}`, async () => [...((await DataUtil.loadJSON(path))[prop] || []), ...await brew(prop)]);
+	const loadBackgrounds = async () => [...await loadSimple("data/backgrounds.json", "background"), ...house("background")];
+	const loadFeats = async () => [...await loadSimple("data/feats.json", "feat"), ...house("feat")];
 	const loadOptFeatures = () => loadSimple("data/optionalfeatures.json", "optionalfeature");
 	const loadConditions = () => once("conditions", async () => {
 		const j = await DataUtil.loadJSON("data/conditionsdiseases.json");
-		return [...(j.condition || []), ...(j.status || [])];
+		return [...(j.condition || []), ...(j.status || []), ...await brew("condition"), ...await brew("status")];
 	});
 	const loadActions = () => loadSimple("data/actions.json", "action");
 
-	const loadSpells = () => once("spells", async () => {
+	const loadSpells = async () => [...await loadSpellsBase(), ...house("spell")];
+	const loadSpellsBase = () => once("spells", async () => {
 		const index = await DataUtil.loadJSON("data/spells/index.json");
 		const all = (await Promise.all(Object.values(index).map(f => DataUtil.loadJSON(`data/spells/${f}`)))).map(j => j.spell || []).flat();
 		const sources = await DataUtil.loadJSON("data/spells/sources.json");
@@ -110,6 +123,8 @@ globalThis.TBData = (() => {
 			const meta = sources?.[sp.source]?.[sp.name];
 			sp._tbClasses = [...(meta?.class || []), ...(meta?.classVariant || [])].map(c => keyOf(c.name, c.source));
 		});
+		// Homebrew spells carry their class lists themselves
+		(await brew("spell")).forEach(sp => { sp._tbClasses = TBBrew.spellClassKeys(sp); all.push(sp); });
 		return all;
 	});
 	// endregion
@@ -238,6 +253,8 @@ globalThis.TBData = (() => {
 			}
 		}
 		features.sort((a, b) => a.level - b.level);
+		// A class house rule on this character's class (`hr` on the class entry): applied here, so every user sees it
+		if (clsRef && clsRef.hr && globalThis.TBHouse && TBHouse.applyClass) return TBHouse.applyClass(clsRef.hr, {cls, subclass, features});
 		return {cls, subclass, features};
 	};
 
@@ -326,6 +343,7 @@ globalThis.TBData = (() => {
 		try {
 			switch (prop) {
 				case "spell": return wrapStats(Renderer.spell.getCompactRenderedString(ent));
+				case "item": return wrapStats(Renderer.item.getCompactRenderedString(ent));
 				case "feat": return wrapStats(Renderer.feat.getCompactRenderedString(ent));
 				case "race": return wrapStats(Renderer.race.getCompactRenderedString(ent));
 				case "background": return wrapStats(Renderer.background.getCompactRenderedString(ent));
@@ -378,7 +396,7 @@ globalThis.TBData = (() => {
 	return {
 		lc, keyOf, isModern, sourceShort, sourceFull, strip, summarize, renderInline, htmlToText,
 		loadClasses, loadRaces, loadBackgrounds, loadFeats, loadOptFeatures, loadSpells, loadConditions, loadActions,
-		getClass, getSubclasses, getSubclass, resolveClass, getClassTableColumns, getClassCore, profBonus,
+		getClass, getSubclasses, getSubclass, resolveClass, resolveRefs: async (entries) => resolveRefs(entries, await loadClasses()), getClassTableColumns, getClassCore, profBonus,
 		renderEntity, renderFeature, spellMeta, abil, titleCase,
 	};
 })();

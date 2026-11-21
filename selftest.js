@@ -741,7 +741,7 @@ module.exports.dice = dice;
  * SHEET (1.8): the Play sheet's tabbed menu. Features & Traits, Equipment, Notes (session book, quick add,
  * homebrew of every kind), About (edits held until End session), then End session: notes reach the character page.
  */
-async function sheet ({baseUrl, outDir, appDir}) {
+async function sheet ({baseUrl, outDir, appDir, renderPdf}) {
 	fs.mkdirSync(outDir, {recursive: true});
 	const win = new BrowserWindow({show: false, width: 1600, height: 1000, webPreferences: {preload: path.join(appDir, "preload.js"), contextIsolation: true, sandbox: false}});
 	win.webContents.on("console-message", (e, level, message, line, sourceId) => { if (level >= 2) fs.appendFileSync(path.join(outDir, "console.txt"), `${message} (${sourceId}:${line})\n`); });
@@ -1063,6 +1063,222 @@ async function sheet ({baseUrl, outDir, appDir}) {
 	`);
 	await js(`[...document.querySelectorAll(".pm-tabs button")].find(b => b.textContent === "Stats")?.click(); await new Promise(r => setTimeout(r, 1200));`);
 	await shot("phone-stats.png");
+	// House rules: Erasmelix reworks Human (Versatile out, Minotaur horns in) through the builder's rework button
+	win.setSize(1600, 1000);
+	await win.loadURL(`${baseUrl}/tb-app.html`);
+	await wait(3500);
+	out.houseRules = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const c = {id: "st-hr", name: "Erasmelix", player: "", classes: [{name: "Fighter", source: "XPHB", level: 3, subclass: {name: "Champion", shortName: "Champion", source: "XPHB"}}], species: {name: "Human", source: "XPHB"}, background: {name: "Soldier", source: "XPHB"},
+			abilities: {method: "manual", base: {str: 15, dex: 12, con: 14, int: 10, wis: 10, cha: 8}}, equipment: {items: [{name: "Longsword", source: "XPHB", qty: 1, equipped: true}], cp: 0}, choices: {"species:skills": ["perception"], "species:size": ["M"]}, feats: [], spells: [], optfeatures: [], settings: {}, createdAt: Date.now()};
+		TBStore.get().characters.push(c); TBStore.changed("char");
+		const before = (await TBRules.analyze(c)).choices.filter(x => x.step === "species").map(x => x.title);
+		TBApp.state.activeCharId = "st-hr"; TBViewBuilder.goTo("species"); TBApp.openCharTab("builder"); TBApp.setView("characters"); await wait(1800);
+		document.querySelector(".hr-btn").click(); await wait(500);
+		const menu = [...document.querySelectorAll(".choose-opt")].map(b => b.textContent);
+		[...document.querySelectorAll(".choose-opt")][0].click(); await wait(900);
+		[...document.querySelectorAll(".hr-trait")].find(t => t.querySelector("input").value === "Versatile").querySelector("button[title^='Remove']").click(); await wait(200);
+		[...document.querySelectorAll(".hr-modal button")].find(b => /From another species/.test(b.textContent)).click(); await wait(1800);
+		const pk = [...document.querySelectorAll(".modal")].pop();
+		const search = pk.querySelector("input[type=search]"); search.value = "horns"; search.dispatchEvent(new Event("input", {bubbles: true})); await wait(900);
+		const row = [...pk.querySelectorAll(".pl-row")].find(r => /^Horns/.test(r.textContent)) || pk.querySelector(".pl-row");
+		row.dispatchEvent(new MouseEvent("dblclick", {bubbles: true})); await wait(400);
+		[...pk.querySelectorAll("button")].find(b => b.textContent === "Done").click(); await wait(400);
+		// A trait that carries mechanics: Darkvision from the Tiefling
+		[...document.querySelectorAll(".hr-modal button")].find(b => /From another species/.test(b.textContent)).click(); await wait(1800);
+		const pk2 = [...document.querySelectorAll(".modal")].pop();
+		const s2 = pk2.querySelector("input[type=search]"); s2.value = "darkvision"; s2.dispatchEvent(new Event("input", {bubbles: true})); await wait(900);
+		const r2 = [...pk2.querySelectorAll(".pl-row")].find(r => /Tiefling/.test(r.textContent) && /^Darkvision/.test(r.textContent));
+		r2.dispatchEvent(new MouseEvent("dblclick", {bubbles: true})); await wait(400);
+		[...pk2.querySelectorAll("button")].find(b => b.textContent === "Done").click(); await wait(400);
+		const nm = document.querySelector(".hr-form input[type=text]"); nm.value = "Horned Human";
+		const traits = [...document.querySelectorAll(".hr-trait")].map(t => t.querySelector("input").value + (t.querySelector(".hr-mech") ? " [" + t.querySelector(".hr-mech").textContent + "]" : ""));
+		[...document.querySelectorAll(".hr-modal button")].find(b => b.textContent === "Save house rule").click(); await wait(2000);
+		const A = await TBRules.analyze(c);
+		const d = A.derived;
+		const book = TBStore.get().books.find(b => b.hrOf === c.id);
+		// Another character doesn't see Erasmelix's house rule
+		const other = {id: "st-hr-other", name: "Other", classes: [], choices: {}};
+		const visibleToOther = (await TBData.loadRaces()).filter(r => r._tbHR && TBHouse.visible(r, other)).length;
+		return {before, menu, traits, species: c.species, after: A.choices.filter(x => x.step === "species").map(x => x.title + "=" + JSON.stringify(x.value)),
+			darkvision: d.darkvision, features: TBRules.featureList(d).filter(f => f.kind === "Species").map(f => f.name),
+			book: book && {title: book.title, chapters: book.chapters.map(ch => ch.title + ": " + ch.items.map(i => i.title).join(", ")), html: book.chapters[0].items[0].html.length},
+			visibleToOther, records: (c.houseRules || []).length};
+	`);
+	await shot("hr-species.png");
+	// The other kinds: background rework, a new spell, weapon, feat and language through each step's button
+	out.houseRules2 = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const c = TBStore.char("st-hr");
+		const step = async (re) => { [...document.querySelectorAll(".bstep")].find(b => re.test(b.textContent)).click(); await wait(1500); };
+		const make = async (optRe, fill) => {
+			document.querySelector(".hr-btn").click(); await wait(500);
+			[...document.querySelectorAll(".choose-opt")].find(b => optRe.test(b.textContent)).click(); await wait(1500);
+			const m = document.querySelector(".hr-modal");
+			const lbl = (txt) => [...m.querySelectorAll("label.field")].find(l => l.querySelector("span").textContent.startsWith(txt));
+			fill(m, lbl);
+			[...m.querySelectorAll("button")].find(b => b.textContent === "Save house rule").click(); await wait(1800);
+		};
+		await step(/Background/);
+		await make(/Rework Soldier/, (m, lbl) => {
+			lbl("Name").querySelector("input").value = "Horn-Guard Soldier";
+			const sk = lbl("Skill proficiencies");
+			[...sk.querySelectorAll(".chip")].find(b => b.textContent === "Intimidation").click();
+			[...sk.querySelectorAll(".chip")].find(b => b.textContent === "Survival").click();
+		});
+		await step(/Spells/);
+		await make(/New spell/, (m, lbl) => {
+			lbl("Name").querySelector("input").value = "Chimeric Gore";
+			lbl("Level").querySelector("select").value = "0";
+			lbl("Description").querySelector("textarea").value = "Spectral horns gore a creature within reach.";
+			lbl("Damage or healing dice").querySelector("input").value = "1d10";
+			lbl("Type").querySelector("select").value = "piercing";
+			lbl("Attack").querySelector("select").value = "M";
+			[...lbl("Spell lists").querySelectorAll(".chip")].find(b => b.textContent === "Wizard").click();
+		});
+		await step(/Equipment/);
+		await make(/New equipment/, (m, lbl) => {
+			lbl("Name").querySelector("input").value = "Gore Gauntlet";
+			lbl("Category").querySelector("select").value = "1";
+			lbl("Damage").querySelector("input").value = "1d8";
+			lbl("Type").querySelector("select").value = "piercing";
+			[...lbl("Properties").querySelectorAll(".chip")].find(b => b.textContent === "Light").click();
+			lbl("Magic bonus").querySelector("select").value = "1";
+			lbl("Rarity").querySelector("select").value = "uncommon";
+			lbl("Price (GP)").querySelector("input").value = "450";
+		});
+		c.equipment.items.find(i => i.name === "Gore Gauntlet").equipped = true;
+		await step(/Details/);
+		await make(/New feat/, (m, lbl) => {
+			lbl("Name").querySelector("input").value = "Horned Charge";
+			[...lbl("Ability Score Increase").querySelectorAll(".chip")].filter(b => /Strength|Constitution/.test(b.textContent)).forEach(b => b.click());
+			lbl("Description").querySelector("textarea").value = "After moving 20 feet straight toward a creature, your horn hit deals an extra {@damage 1d6} Piercing damage.";
+		});
+		await make(/New language/, (m, lbl) => { lbl("Name").querySelector("input").value = "Old Hornish"; });
+		const A = await TBRules.analyze(c);
+		const d = A.derived;
+		const cat = await TBShop.catalog();
+		const row = cat.rows.find(r => r.name === "Gore Gauntlet");
+		const gore = d.spells.find(s => s.ent.name === "Chimeric Gore");
+		return {
+			background: c.background.name, skills: Object.entries(d.skills).filter(([, v]) => v.prof).map(([k]) => k), bgFeat: d.feats.map(f => f.ent.name + "/" + f.via),
+			spell: gore && {via: gore.via, classes: gore.ent._tbClasses, dice: TBPlay.spellDice(gore.ent, 0, 5)},
+			attack: d.attacks.find(a => a.name === "Gore Gauntlet"), store: row && {cp: row.cp, owner: TBHouse.visible(row.ent, c), other: TBHouse.visible(row.ent, {id: "nobody"})},
+			featChoice: A.choices.filter(x => x.id.startsWith("extra:feat")).map(x => x.title), language: A.choices.find(x => x.id === "details:languages").options.some(o => o.label === "Old Hornish"),
+			book: TBStore.get().books.find(b => b.hrOf === c.id).chapters.map(ch => ch.title + ": " + ch.items.map(i => i.title).join(", ")),
+			records: c.houseRules.map(r => r.kind + ":" + r.title),
+		};
+	`);
+	await shot("hr-details.png");
+	// Class: Erasmelix's Fighter 3 (Champion, choices made) becomes an "Ironhorn Fighter": d12, no Second Wind, Rage borrowed
+	out.houseRulesClass = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const c = TBStore.char("st-hr");
+		Object.assign(c.choices, {"class:fighter|xphb:skills": ["athletics", "survival"], "class:fighter|xphb:L1:fighting-style": [{name: "Defense", source: "XPHB"}], "class:fighter|xphb:mastery": ["longsword", "greataxe", "spear"]});
+		TBStore.changed("char");
+		const A0 = await TBRules.analyze(c);
+		const before = {hp: A0.derived.hp, features: A0.derived.classes[0].features.filter(f => f.level <= 3).map(f => f.name)};
+		[...document.querySelectorAll(".bstep")].find(b => /Class/.test(b.textContent)).click(); await wait(1500);
+		document.querySelector(".bclass .hr-btn").click(); await wait(500);
+		const menu = [...document.querySelectorAll(".choose-opt")].map(b => b.textContent);
+		[...document.querySelectorAll(".choose-opt")][0].click(); await wait(2000);
+		const m = document.querySelector(".hr-modal");
+		const lbl = (txt) => [...m.querySelectorAll("label.field")].find(l => l.querySelector("span").textContent.startsWith(txt));
+		lbl("Name of this version").querySelector("input").value = "Ironhorn Fighter";
+		lbl("Hit Die").querySelector("select").value = "12";
+		[...m.querySelectorAll(".hr-keep label")].find(l => /Second Wind/.test(l.textContent)).querySelector("input").click();
+		[...m.querySelectorAll("button")].find(b => /From another class/.test(b.textContent)).click(); await wait(2200);
+		const pk = [...document.querySelectorAll(".modal")].pop();
+		const se = pk.querySelector("input[type=search]"); se.value = "rage"; se.dispatchEvent(new Event("input", {bubbles: true})); await wait(900);
+		[...pk.querySelectorAll(".pl-row")].find(x => /^Rage/.test(x.textContent) && /Barbarian 1/.test(x.textContent)).dispatchEvent(new MouseEvent("dblclick", {bubbles: true})); await wait(900);
+		[...pk.querySelectorAll("button")].find(b => b.textContent === "Done").click(); await wait(400);
+		[...m.querySelectorAll("button")].find(b => b.textContent === "Save house rule").click(); await wait(2200);
+		const A = await TBRules.analyze(c);
+		const d = A.derived;
+		return {
+			menu, before, hp: d.hp, hd: d.classes[0].hd, title: d.classes[0].hrTitle, hr: !!c.classes[0].hr,
+			features: d.classes[0].features.filter(f => f.level <= 3).map(f => f.name),
+			choicesKept: ["class:fighter|xphb:skills", "class:fighter|xphb:L1:fighting-style", "class:fighter|xphb:mastery"].map(k => !!A.choices.find(x => x.id === k && x.complete)),
+			rage: TBRules.featureList(d).filter(f => f.name === "Rage").map(f => f.act + " / " + f.uses),
+			tab: document.querySelector(".cls-tab.on")?.textContent,
+		};
+	`);
+	await shot("hr-class.png");
+	// Play: cast the house-rule cantrip and attack with the house-rule weapon
+	out.houseRulesPlay = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		TBApp.setView("play"); await TBViewPlay.startSession("st-hr"); await wait(2000);
+		const c = TBStore.char("st-hr");
+		TBPlay.stateOf(c).physical = false;
+		TBViewPlay.state.mainTab = "actions"; TBViewPlay.state.actTab = "action"; await TBViewPlay.render(); await wait(900);
+		const rows = [...document.querySelectorAll("#view-play .pl-act")].map(r => r.querySelector(".t").textContent).filter(t => /Gore|Horn/.test(t));
+		const gore = [...document.querySelectorAll("#view-play .pl-act")].find(r => /^Chimeric Gore/.test(r.querySelector(".t").textContent));
+		gore.querySelector("button").click(); await wait(1500);
+		// The app rolled the attack: say it hit
+		const hit = [...document.querySelectorAll(".modal button")].find(b => b.textContent === "Hit");
+		const asked = !!hit;
+		if (hit) { hit.click(); await wait(1500); }
+		[...document.querySelectorAll(".modal button")].find(b => /Nothing more/.test(b.textContent))?.click(); await wait(800);
+		const log = [asked ? "(asked: did it hit?)" : "(not asked)", ...TBPlay.stateOf(c).log.slice(0, 3).map(l => l.text)];
+		[...document.querySelectorAll("#view-play .btn")].find(b => /End session/.test(b.textContent)).click(); await wait(900);
+		[...document.querySelectorAll(".modal .btn")].find(b => b.textContent === "End without XP").click(); await wait(1200);
+		return {rows, log};
+	`);
+
+	// Exports of the house-ruled character: booklet, cheat sheet, sheet and cards
+	const hrPayload = await js(`
+		const c = TBStore.char("st-hr");
+		await TBApp.syncBook(c);
+		const book = TBStore.bookOf(c.id);
+		const A = await TBRules.analyze(c);
+		return {book: TBViewExport.printableBook(book, c), cheat: await TBBook.buildCheat(c), sheet: TBExportData.sheetData(A), cards: TBExportData.cardsData(A), options: TBViewExport.pdfOptions(TBViewExport.optionsOf(book))};
+	`);
+	const hrBook = await renderPdf("/tb-print.html", {book: hrPayload.book, options: hrPayload.options});
+	const hrCheat = await renderPdf("/tb-cheat.html", {cheat: hrPayload.cheat, pageMap: hrBook.info.pageMap, bookTitle: hrPayload.book.title, options: hrPayload.options});
+	const hrSheet = await renderPdf("/tb-sheet.html", {sheet: hrPayload.sheet, pageMap: hrBook.info.pageMap, options: hrPayload.options});
+	const hrCards = await renderPdf("/tb-cards.html", {...hrPayload.cards, pageMap: hrBook.info.pageMap, options: hrPayload.options});
+	fs.writeFileSync(path.join(outDir, "hr-booklet.pdf"), hrBook.pdf);
+	fs.writeFileSync(path.join(outDir, "hr-cheat.pdf"), hrCheat.pdf);
+	fs.writeFileSync(path.join(outDir, "hr-sheet.pdf"), hrSheet.pdf);
+	fs.writeFileSync(path.join(outDir, "hr-cards.pdf"), hrCards.pdf);
+	out.hrExports = {booklet: hrBook.info.pageCount, cheat: hrCheat.info && hrCheat.info.sheets, hornsInBook: JSON.stringify(hrPayload.book).includes("Horns"), hornsInSheet: JSON.stringify(hrPayload.sheet).includes("Horns")};
+	// 5etools homebrew: a fixture file through the site's engine, then every list that should see it
+	const fixture = fs.readFileSync(path.join(appDir, "test-fixtures", "brew-fixture.json"), "utf8");
+	win.setSize(1600, 1000);
+	await win.loadURL(`${baseUrl}/tb-app.html`);
+	await wait(3500);
+	out.brewAdd = await js(`await BrewUtil2.pAddBrewsFromFiles([{json: ${fixture}, name: "Beldora; Fixture.json"}]); return (await BrewUtil2.pGetBrew()).length;`);
+	win.reload();
+	await wait(4500);
+	out.brew = await js(`
+		const wait = (ms) => new Promise(r => setTimeout(r, ms));
+		const races = await TBData.loadRaces();
+		const cls = await TBData.loadClasses();
+		const barb = cls.classes.find(c => c.name === "Barbarian" && c.source === "XPHB");
+		const subs = (await TBData.getSubclasses(barb)).filter(x => x._tbBrew).map(x => x.name);
+		const copied = races.find(r => r.name === "Copied Human");
+		const spell = (await TBData.loadSpells()).find(x => x.name === "Fixture Bolt");
+		const cat = await TBShop.catalog();
+		const mons = await TBPlay.allMonsters();
+		const c = {id: "st-brew", name: "Selftest Brew", player: "", classes: [{name: "Barbarian", source: "XPHB", level: 3, subclass: {name: "Path of the Fixture", shortName: "Fixture", source: "BeldoraFixture"}}], species: {name: "Hornkin", source: "BeldoraFixture"}, background: {name: "Soldier", source: "XPHB"},
+			abilities: {method: "manual", base: {str: 15, dex: 12, con: 14, int: 8, wis: 10, cha: 10}}, equipment: {items: [{name: "Fixture Blade", source: "BeldoraFixture", qty: 1, equipped: true}], cp: 0}, choices: {}, feats: [], spells: [], optfeatures: [], settings: {}, createdAt: Date.now()};
+		TBStore.get().characters.push(c); TBStore.changed("char");
+		const A = await TBRules.analyze(c);
+		const d = A.derived;
+		TBApp.state.activeCharId = "st-brew"; TBApp.state.charTab = "hero"; TBApp.setView("characters"); await wait(2000);
+		const tags = document.querySelectorAll(".hero .tag.brew").length;
+		TBBrew.open(); await wait(1500);
+		const manager = document.querySelector(".hb-modal")?.innerText || "";
+		return {
+			brewSpecies: races.filter(r => r._tbBrew).map(r => r.name), copiedSpeed: copied && copied.speed, copiedTraits: copied && (copied.entries || []).filter(e => e.name).map(e => e.name),
+			subs, spellClasses: spell && spell._tbClasses,
+			store: cat.rows.filter(r => r.brew).map(r => r.name + " " + r.cp), beast: !!mons.byKey.get("fixture beast|beldorafixture"),
+			features: TBRules.featureList(d).filter(f => f.brew).map(f => f.kind + ":" + f.name), darkvision: d.darkvision, attacks: d.attacks.map(a => a.name + " " + a.damage),
+			tags, manager: manager.slice(0, 600),
+		};
+	`);
+	await shot("brew-manager.png");
+	out.brewClean = await js(`document.querySelector(".hb-modal .btn.primary")?.click(); const all = await BrewUtil2.pGetBrew(); await BrewUtil2.pDeleteBrews(all); return (await BrewUtil2.pGetBrew()).length;`);
 	fs.writeFileSync(path.join(outDir, "sheet.json"), JSON.stringify(out, null, 2));
 	win.destroy();
 }

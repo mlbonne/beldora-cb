@@ -647,9 +647,11 @@ globalThis.TBPlay = (() => {
 	const allMonsters = () => once("mons", async () => {
 		const j = await DataUtil.monster.loadJSON();
 		await DataUtil.monster.pPreloadLegendaryGroupsSite();
+		// Installed 5etools homebrew creatures (forms, summons, Quick add)
+		const list = [...(j.monster || []), ...(globalThis.TBBrew ? await TBBrew.get("monster") : [])];
 		const byKey = new Map();
-		(j.monster || []).forEach(m => byKey.set(`${lc(m.name)}|${lc(m.source)}`, m));
-		return {list: j.monster || [], byKey};
+		list.forEach(m => byKey.set(`${lc(m.name)}|${lc(m.source)}`, m));
+		return {list, byKey};
 	});
 	const creatureTags = (entries) => {
 		const out = [];

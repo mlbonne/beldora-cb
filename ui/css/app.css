@@ -282,3 +282,48 @@ label.chk input { accent-color: var(--accent); }
 .tb-brand-cb { font-family: var(--ui); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--on-accent); background: var(--accent); border-radius: 3px; padding: 1px 5px; vertical-align: 3px; }
 .tb-brand { display: flex; align-items: center; gap: 8px; }
 .tb-brand-logo { height: 24px; width: auto; display: block; }
+
+/* 5etools homebrew (brew.js) */
+.tag.brew, span.tag.brew { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 9px; font-size: 10.5px; line-height: 16px; letter-spacing: 0.02em; background: #2f4a2a; color: #b9e0a5; border: 1px solid #45703c; vertical-align: middle; white-space: nowrap; }
+.tag.hr, span.tag.hr { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 9px; font-size: 10.5px; line-height: 16px; background: #4a2a3a; color: #f0b9d2; border: 1px solid #7a4560; vertical-align: middle; white-space: nowrap; }
+.hb-modal { width: 860px; max-width: 96vw; height: 86vh; }
+.hb-modal .modal-b { overflow: hidden; }
+.hb-wrap { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+.hb-tabs { display: flex; gap: 4px; padding: 8px 14px 0; border-bottom: 1px solid var(--line); }
+.hb-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text2); padding: 6px 12px; cursor: pointer; font-family: var(--head); font-size: 14px; }
+.hb-tabs button.active { color: var(--accent2); border-bottom-color: var(--accent); }
+.hb-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.hb-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hb-head input[type=search] { flex: 1 1 240px; }
+.hb-item { border: 1px solid var(--line2); border-radius: 8px; padding: 10px 12px; background: var(--bg); display: flex; flex-direction: column; gap: 6px; }
+.hb-item-h { display: flex; gap: 8px; align-items: flex-start; }
+.hb-src { font-size: 12px; margin-top: 2px; }
+.hb-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.hb-chip { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg3); border: 1px solid var(--line2); color: var(--text2); }
+.hb-chip b { color: var(--accent2); }
+.hb-note { font-size: 12.5px; color: var(--text2); padding-left: 10px; border-left: 2px solid var(--accent-dim); }
+.hb-list { display: flex; flex-direction: column; }
+.hb-row { display: flex; gap: 10px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--line-soft); }
+.hb-row .tag { margin-left: 6px; }
+.hb-status { font-size: 12.5px; }
+
+/* House rules (house-rules.js) */
+.hr-btn { white-space: nowrap; }
+.hr-modal { width: 820px; max-width: 96vw; max-height: 92vh; }
+.hr-modal .modal-b { overflow: auto; }
+.hr-form { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.hr-form input[type=text], .hr-form textarea { width: 100%; }
+.hr-hint { font-size: 12px; margin-top: 2px; }
+.hr-based { font-size: 13px; color: var(--accent2); background: var(--accent-bg2); border: 1px solid var(--accent-dim); border-radius: 6px; padding: 6px 10px; }
+.hr-sec { display: flex; align-items: center; gap: 6px; margin-top: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.hr-traits { display: flex; flex-direction: column; gap: 8px; }
+.hr-trait { border: 1px solid var(--line2); border-radius: 8px; padding: 8px 10px; background: var(--bg); display: flex; flex-direction: column; gap: 6px; }
+.hr-trait-h { display: flex; gap: 6px; align-items: center; }
+.hr-trait-h input { flex: 1 1 auto; font-weight: 700; }
+.hr-mech { font-size: 12px; color: var(--text2); display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.hr-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.hr-extra summary { cursor: pointer; color: var(--accent2); font-family: var(--head); margin: 4px 0; }
+.hr-extra[open] { display: flex; flex-direction: column; gap: 8px; }
+.choose-list { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; width: 420px; max-width: 100%; }
+.choose-opt { text-align: left; justify-content: flex-start; display: flex; flex-direction: column; align-items: flex-start; padding: 9px 12px; }
+.hr-sub { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border: 1px dashed var(--line2); border-radius: 8px; }

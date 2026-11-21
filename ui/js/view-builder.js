@@ -26,7 +26,7 @@ globalThis.TBViewBuilder = (() => {
 	const statusIcon = (c) => c.complete ? h("span.st.ok", {title: "Done"}, "✓") : h("span.st.warn", {title: "Needs a choice"}, "!");
 
 	const optionCard = (ent, {title, subtitle, lines = [], onPick}) => h("div.ocard", {on: {click: onPick}},
-		h("div.ocard-h", h("span.ocard-t", title || ent.name), h("span.src", D().sourceShort(ent.source))),
+		h("div.ocard-h", h("span.ocard-t", title || ent.name), ent._tbBrew ? h("span.tag.brew", "5etools homebrew") : null, ent._tbHR ? h("span.tag.hr", "House rule") : null, h("span.src", D().sourceShort(ent.source))),
 		subtitle ? h("div.ocard-s", subtitle) : null,
 		...lines.map(l => h("div.ocard-l", l)),
 	);
@@ -178,7 +178,7 @@ globalThis.TBViewBuilder = (() => {
 			const taken = ctx.A.derived.feats.map(f => f.ent);
 			const inCategory = feats.filter(f => (c.categories || []).some(cat => f.category === cat || (cat.startsWith("FS") && f.category === "FS")));
 			// Qualifying feats only; a feat you already have is offered again only if it is repeatable
-			const allowed = inCategory.filter(f => R().meetsPrereq(f, P).ok && (f.repeatable || isMine(f) || !taken.some(t => R().same(t, f))));
+			const allowed = inCategory.filter(f => TBHouse.visible(f, char) && R().meetsPrereq(f, P).ok && (f.repeatable || isMine(f) || !taken.some(t => R().same(t, f))));
 			return TBPickers.open({
 				title: c.title,
 				prop: "feat",
@@ -213,7 +213,7 @@ globalThis.TBViewBuilder = (() => {
 				title: `${c.title} (${c.count})`,
 				prop: "spell",
 				multi: c.count > 1,
-				load: async () => spells.filter(s => R().spellMatches(s, c.filter)),
+				load: async () => spells.filter(s => TBHouse.visible(s, char) && R().spellMatches(s, c.filter)),
 				info: (e) => `${e.level === 0 ? "Cantrip" : "Lv " + e.level} · ${(() => { try { return Parser.spSchoolAbvToFull(e.school); } catch (x) { return e.school; } })()}`,
 				chipGroups: levels.length > 1 ? [{label: "Level", chips: levels.map(l => ({label: l === 0 ? "Cantrip" : String(l), test: e => e.level === l}))}] : [],
 				isChosen: (e) => (char.choices[c.id] || []).some(r => R().same(r, e)),
@@ -306,6 +306,8 @@ globalThis.TBViewBuilder = (() => {
 				lines: (e) => [[e.size ? e.size.map(s => Parser.sizeAbvToFull(s)).join(" or ") : "", e.speed ? `Speed ${typeof e.speed === "number" ? e.speed : e.speed.walk} ft.` : "", e.darkvision ? `Darkvision ${e.darkvision} ft.` : ""].filter(Boolean).join(" · "), (e.entries || []).filter(x => x && x.name).map(x => x.name).slice(0, 5).join(", ")],
 				set: (e) => { char.species = e ? {name: e.name, source: e.source} : null; Object.keys(char.choices).filter(k => k.startsWith("species:")).forEach(k => delete char.choices[k]); },
 				ent: () => A.derived.speciesEnt,
+				// Reworking the species the character has keeps the choices made for it (they still apply where the traits do)
+				hr: (cur) => TBHouse.button(char, "race", {current: cur, onUse: (e, {replacing}) => { if (replacing) char.species = {name: e.name, source: e.source}; else conf.set(e); ctx.changed(); }, onChanged: () => ctx.changed()}),
 			},
 			background: {
 				ref: char.background,
@@ -319,15 +321,17 @@ globalThis.TBViewBuilder = (() => {
 				},
 				set: (e) => { char.background = e ? {name: e.name, source: e.source} : null; Object.keys(char.choices).filter(k => k.startsWith("bg:")).forEach(k => delete char.choices[k]); },
 				ent: () => A.derived.backgroundEnt,
+				// A background's choice ids carry its feat's key: reworking keeps them only where they still match
+				hr: (cur) => TBHouse.button(char, "background", {current: cur, onUse: (e, {replacing}) => { if (replacing) char.background = {name: e.name, source: e.source}; else conf.set(e); ctx.changed(); }, onChanged: () => ctx.changed()}),
 			},
 		}[kind];
 
 		if (!conf.ref) {
 			const grid = h("div.ogrid");
-			const head = h("div.bhead", h("h2", `Choose a ${conf.title.toLowerCase()}`), h("div.spacer"), searchBar(() => fill(), `Search ${conf.title.toLowerCase()}…`));
+			const head = h("div.bhead", h("h2", `Choose a ${conf.title.toLowerCase()}`), h("div.spacer"), conf.hr ? conf.hr(null) : null, searchBar(() => fill(), `Search ${conf.title.toLowerCase()}…`));
 			const fill = async () => {
 				clear(grid);
-				const all = (await conf.load()).filter(e => (char.legacy || D().isModern(e.source)) && (!ui.search || lc(e.name).includes(lc(ui.search))));
+				const all = (await conf.load()).filter(e => (char.legacy || D().isModern(e.source) || e._tbBrew || e._tbHR) && TBHouse.visible(e, char) && (!ui.search || lc(e.name).includes(lc(ui.search))));
 				all.sort(coreFirst).forEach(e => grid.appendChild(optionCard(e, {lines: conf.lines(e), onPick: () => { conf.set(e); ui.search = ""; ctx.changed(); }})));
 				if (!all.length) grid.appendChild(h("div.empty-small", "Nothing matches."));
 			};
@@ -340,7 +344,7 @@ globalThis.TBViewBuilder = (() => {
 		if (ent) frame.setContent(TBSan.clean(D().renderEntity(conf.prop, ent)));
 		root.appendChild(h("div.bsplit",
 			h("div.bcol.detail-col",
-				h("div.bcol-title", conf.title, h("div.spacer"), h("button.btn.small", {on: {click: () => { conf.set(null); ctx.changed(); }}}, "Change")),
+				h("div.bcol-title", conf.title, ent && ent._tbHR ? h("span.tag.hr", "House rule") : null, h("div.spacer"), conf.hr ? conf.hr(ent) : null, h("button.btn.small", {on: {click: () => { conf.set(null); ctx.changed(); }}}, "Change")),
 				h("div.detail-frame", frame),
 			),
 			choicesColumn(char, A.choices.filter(c => c.step === kind), ctx),
@@ -390,7 +394,7 @@ globalThis.TBViewBuilder = (() => {
 		});
 
 		const tabs = h("div.cls-tabs",
-			...char.classes.map((c, i) => h("button.cls-tab", {class: i === ui.classIx ? "on" : "", on: {click: () => { ui.classIx = i; ctx.rerender(); }}}, `${c.name} ${c.level}`, c.subclass ? h("span.muted", ` · ${c.subclass.name}`) : null)),
+			...char.classes.map((c, i) => h("button.cls-tab", {class: i === ui.classIx ? "on" : "", on: {click: () => { ui.classIx = i; ctx.rerender(); }}}, `${(A.derived.classes[i] && A.derived.classes[i].hrTitle) || c.name} ${c.level}`, c.subclass ? h("span.muted", ` · ${c.subclass.name}`) : null)),
 			h("button.btn.small", {disabled: total >= 20, on: {click: addMulticlass}}, "+ Multiclass"),
 			h("div.spacer"),
 			h("span.muted", `Character level ${total}`),
@@ -421,7 +425,9 @@ globalThis.TBViewBuilder = (() => {
 		const mine = A.choices.filter(c => c.step === "class" && (c.id.startsWith(`class:${ck}:`) || (c.group || "").startsWith(cref.name)));
 		root.appendChild(h("div.bclass", tabs, h("div.bsplit",
 			h("div.bcol.detail-col",
-				h("div.bcol-title", `${cref.name} level`, lvl, h("div.spacer"),
+				h("div.bcol-title", `${cref.name} level`, lvl, dc && dc.hrTitle ? h("span.tag.hr", {title: "House rule on this class"}, dc.hrTitle) : null, h("div.spacer"),
+					// Class house rule: a layer on this class entry (cref.hr), so the class keeps its name and choices
+					TBHouse.buttonFor(char, "class", {noNew: true, currents: dc ? [{kind: "class", ent: cref.hr && TBHouse.recordById(cref.hr) ? TBHouse.compile(TBHouse.recordById(cref.hr), char) : dc.ent}] : [], onChanged: () => ctx.changed(), onUse: (k, ent) => { cref.hr = ent._tbHR.id; }}),
 					h("button.btn.small.danger", {on: {click: async () => {
 						if (!(await TBUI.confirm("Remove class", `Remove ${cref.name} and its choices?`, {okLabel: "Remove", danger: true}))) return;
 						char.classes.splice(ui.classIx, 1);
@@ -514,7 +520,7 @@ globalThis.TBViewBuilder = (() => {
 				title: "Add extra spells (scrolls, items, DM grants…)",
 				prop: "spell",
 				multi: true,
-				load: async () => spells,
+				load: async () => spells.filter(s => TBHouse.visible(s, char)),
 				info: (e) => `${e.level === 0 ? "Cantrip" : "Lv " + e.level}`,
 				isChosen: (e) => (char.spells || []).some(r => R().same(r, e)),
 				onPick: (e) => { char.spells = [...(char.spells || []), {name: e.name, source: e.source}]; TBStore.changed("char"); },
@@ -523,7 +529,12 @@ globalThis.TBViewBuilder = (() => {
 		};
 		root.appendChild(h("div.bsplit",
 			h("div.bcol",
-				h("div.bcol-title", "Your spells", h("div.spacer"), h("button.btn.small", {on: {click: addExtra}}, "+ Extra spells")),
+				h("div.bcol-title", "Your spells", h("div.spacer"),
+					TBHouse.buttonFor(char, "spell", {currents: A.derived.spells.map(s => ({kind: "spell", ent: s.ent})), onChanged: () => ctx.changed(), onUse: (k, ent, {replacing, base}) => {
+						if (replacing && base) TBHouse.replaceRef(char, base, ent);
+						else if (!replacing) { char.spells = [...(char.spells || []), {name: ent.name, source: ent.source}]; TBUI.toast(`${ent.name} added as an extra spell. Spell lists you ticked offer it too.`); }
+					}}),
+					h("button.btn.small", {on: {click: addExtra}}, "+ Extra spells")),
 				panel(null, h("div", ...casting, slots, h("hr.sep"), list)),
 			),
 			choicesColumn(char, spellChoices, ctx, {title: "Spell choices", empty: "No class or feat here grants spell choices."}),
@@ -547,7 +558,7 @@ globalThis.TBViewBuilder = (() => {
 				title: "Add items",
 				prop: "item",
 				multi: true,
-				load: async () => all.filter(i => i.name),
+				load: async () => all.filter(i => i.name && TBHouse.visible(i, char)),
 				renderPreview: (e) => { try { return `<table class="ve-stats">${Renderer.item.getCompactRenderedString(e)}</table>`; } catch (x) { return `<h2>${TBBook.esc(e.name)}</h2>`; } },
 				info: (e) => e.weapon ? "Weapon" : R().isArmorEnt(e) ? "Armor" : R().isShieldEnt(e) ? "Shield" : (e.rarity && e.rarity !== "none" ? e.rarity : ""),
 				onPick: (e) => { eq.items.push({name: e.name, source: e.source, qty: 1, equipped: false}); TBStore.changed("char"); },
@@ -558,7 +569,12 @@ globalThis.TBViewBuilder = (() => {
 		gp.addEventListener("change", () => { eq.cp = Math.round((Number(gp.value) || 0) * 100); ctx.changed(); });
 		root.appendChild(h("div.bsplit",
 			h("div.bcol",
-				h("div.bcol-title", "Inventory", h("div.spacer"), h("button.btn.small", {on: {click: addItem}}, "+ Add items")),
+				h("div.bcol-title", "Inventory", h("div.spacer"),
+					TBHouse.buttonFor(char, "item", {currents: (eq.items || []).map((it, ix) => ({kind: "item", ent: A.derived.items[ix] && A.derived.items[ix].ent})).filter(x => x.ent), onChanged: () => ctx.changed(), onUse: (k, ent, {replacing, base}) => {
+						if (replacing && base) TBHouse.replaceRef(char, base, ent);
+						else if (!replacing) eq.items.push({name: ent.name, source: ent.source, qty: 1, equipped: false});
+					}}),
+					h("button.btn.small", {on: {click: addItem}}, "+ Add items")),
 				panel(null, h("div",
 					h("div.row", {style: {marginBottom: "10px"}}, h("b", "Coins (GP)"), gp, h("span.muted", `AC ${A.derived.ac} (${A.derived.acNote})`)),
 				A.derived.itemEffects.attuned ? h("div", {class: A.derived.itemEffects.attuned > 3 ? "warn-line" : "muted", style: {fontSize: "13px", marginBottom: "6px"}}, `Attuned to ${A.derived.itemEffects.attuned} of 3 items${A.derived.itemEffects.attuned > 3 ? ": only 3 can be attuned at once" : ""}.`) : null,
@@ -587,7 +603,12 @@ globalThis.TBViewBuilder = (() => {
 		const small = (k, label) => h("label.field", h("span", label), h("input", {type: "text", value: d[k] || "", on: {change: (e) => { d[k] = e.target.value; ctx.changed(); }}}));
 		root.appendChild(h("div.bsplit",
 			h("div.bcol",
-				h("div.bcol-title", "Details"),
+				h("div.bcol-title", "Details", h("div.spacer"),
+					TBHouse.buttonFor(char, ["feat", "language"], {currents: A.derived.feats.map(f => ({kind: "feat", ent: f.ent})), onChanged: () => ctx.changed(), onUse: (k, ent, {replacing, base}) => {
+						if (k === "feat" && replacing && base) TBHouse.replaceRef(char, base, ent);
+						else if (k === "feat" && !replacing) { char.feats = [...(char.feats || []), {name: ent.name, source: ent.source}]; TBUI.toast(`${ent.name} added to the character. Feat choices of its category offer it too.`); }
+						else if (k === "language") TBUI.toast(`${ent.name} is now in the Languages choice.`);
+					}})),
 				panel(null, h("div",
 					h("div.row", {style: {alignItems: "flex-start", gap: "14px"}}, portrait, fileIn,
 						h("div.grow", h("label.field", h("span", "Alignment"), align), h("div.grid2", small("age", "Age"), small("height", "Height"), small("weight", "Weight"), small("eyes", "Eyes")))),

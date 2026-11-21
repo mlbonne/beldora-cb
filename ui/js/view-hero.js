@@ -22,15 +22,22 @@ globalThis.TBViewHero = (() => {
 
 		// region Header
 		const todo = Object.entries(A.steps).filter(([, s]) => s === "In progress" || s === "Not started");
+		// Content this device doesn't have (a character file from a friend who uses other 5etools homebrew)
+		const missing = [
+			char.species && !d.speciesEnt ? `species ${char.species.name} (${char.species.source})` : null,
+			char.background && !d.backgroundEnt ? `background ${char.background.name} (${char.background.source})` : null,
+			...char.classes.filter(k => !d.classes.some(x => x.name === k.name && x.level)).map(k => `class ${k.name} (${k.source})`),
+		].filter(Boolean);
 		const xp = TBLevel.progress(char);
 		const levelUp = () => TBLevel.levelUp(char);
 		const header = h("div.hhead",
 			char.portrait ? h("img.hportrait", {src: char.portrait}) : null,
 			h("div.grow",
 				h("div.hname", d.name),
-				h("div.hline", `Level ${d.totalLevel} · ${[d.species, d.classes.map(c => `${c.subclass ? c.subclass + " " : ""}${c.name} ${c.level}`).join(" / "), d.background].filter(Boolean).join(" · ")}`),
+				h("div.hline", `Level ${d.totalLevel} · ${[d.species, d.classes.map(c => `${c.subclass ? c.subclass + " " : ""}${c.hrTitle || c.name} ${c.level}`).join(" / "), d.background].filter(Boolean).join(" · ")}`),
 				TBLevel.xpBar(char, () => render(root, char)),
 				char.forced ? h("div.hwarn", `Forced level-up from level ${char.forced.fromLevel}. `, h("a", {href: "#", on: {click: (e) => { e.preventDefault(); TBLevel.revertForced(char); }}}, "Revert"), " · ", h("a", {href: "#", on: {click: (e) => { e.preventDefault(); TBLevel.keepForced(char); }}}, "Keep it")) : null,
+				missing.length ? h("div.hwarn", `Missing on this device: ${missing.join(", ")}. Add the 5etools homebrew it comes from in Settings → `, h("a", {href: "#", on: {click: (e) => { e.preventDefault(); TBBrew.open(); }}}, "Homebrew Manager"), ".") : null,
 				todo.length ? h("div.hwarn", "Unfinished: ", ...todo.map(([s]) => h("a", {href: "#", on: {click: (e) => { e.preventDefault(); TBViewBuilder.goTo(s); TBApp.openCharTab("builder"); }}}, R().STEPS.find(x => x.id === s).label)).flatMap((a, i) => i ? [", ", a] : [a])) : null,
 			),
 			h("div.hactions",
@@ -144,7 +151,7 @@ globalThis.TBViewHero = (() => {
 					fill(el, open);
 				}}},
 					h("span.kindtag", {class: f.kind.toLowerCase()}, f.kind === "Class" || f.kind === "Subclass" ? `${f.kind} ${f.level}` : f.kind),
-					h("span.grow", h("b", f.name), h("span.muted", ` · ${f.group}`)),
+					h("span.grow", h("b", f.name), h("span.muted", ` · ${f.group}`), f.brew ? h("span.tag.brew", "5etools homebrew") : null),
 					f.act !== "Passive" ? h("span.acttag", f.act) : null,
 					f.uses ? h("span.muted", {style: {fontSize: "12px"}}, f.uses) : null,
 				),

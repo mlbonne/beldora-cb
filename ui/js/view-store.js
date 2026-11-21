@@ -215,7 +215,9 @@ globalThis.TBViewStore = (() => {
 		const cat = await S_().catalog();
 		const settle = S_().settlementOf(st.settle);
 		const q = lc(ui.search).trim();
-		const keep = (r) => (!ui.core || r.core) && (ui.legacy || !r.reprinted) && (ui.rarity === "all" || r.rarity === ui.rarity) && (!q || lc(r.name).includes(q));
+		const who = TBViewPlay.char && TBViewPlay.char();
+		// House-rule items: only the shopping character's own (or shared ones)
+		const keep = (r) => (!r.hr || TBHouse.visible(r.ent, who)) && (!ui.core || r.core) && (ui.legacy || !r.reprinted) && (ui.rarity === "all" || r.rarity === ui.rarity) && (!q || lc(r.name).includes(q));
 		let rows = cat.rows.filter(r => v.match(r.ent) && S_().availableIn(r.ent, settle) && keep(r));
 		if (v.scrolls) rows = rows.concat(cat.scrolls.filter(r => S_().RARITY_ORDER.indexOf(r.rarity) <= S_().RARITY_ORDER.indexOf(settle.maxRarity) && keep(r)));
 		const services = [];
@@ -273,7 +275,7 @@ globalThis.TBViewStore = (() => {
 		};
 		const line = (row) => h("div.pl-act.st-row",
 			h("div.grow",
-				h("div.t", {on: {click: () => (row.service ? null : showItem(row))}}, row.name, rarityTag(row.rarity), row.treasure ? h("span.tag.item", "Treasure") : null),
+				h("div.t", {on: {click: () => (row.service ? null : showItem(row))}}, row.name, rarityTag(row.rarity), row.treasure ? h("span.tag.item", "Treasure") : null, row.brew ? h("span.tag.brew", "5etools homebrew") : null, row.hr ? h("span.tag.hr", "House rule") : null),
 				h("div.d", row.service ? row.group : [row.ent ? (S_().typeOf(row.ent) ? (Parser.itemTypeToFull ? (() => { try { return Parser.itemTypeToFull(S_().typeOf(row.ent)); } catch (e) { return ""; } })() : "") : row.ent.wondrous ? "Wondrous item" : "") : `Level ${row.level || "cantrip"} spell`, Parser.sourceJsonToAbv ? Parser.sourceJsonToAbv(row.source) : row.source].filter(Boolean).join(" · ")),
 			),
 			h("div.st-price", discountOf(st) || st.visit.markup ? [h("s.muted", S_().money(row.cp)), h("b", S_().money(buyCp(st, row.cp)))] : h("b", S_().money(row.cp))),
@@ -285,7 +287,7 @@ globalThis.TBViewStore = (() => {
 				h("div.pl-sub", v.desc, " ", h("span.muted", settle.note)),
 				h("div.row", {style: {gap: "6px", margin: "8px 0", flexWrap: "wrap"}}, search,
 					select(ui.sort, [{value: "name", label: "A → Z"}, {value: "price", label: "Cheapest first"}, {value: "priceDesc", label: "Priciest first"}], (x) => { ui.sort = x; ui.page = 0; render(); }),
-					h("label.chk", {title: "Only the core rulebooks (PHB, DMG, MM)"}, (() => { const i = h("input", {type: "checkbox", checked: ui.core}); i.addEventListener("change", () => { ui.core = i.checked; ui.page = 0; render(); }); return i; })(), "Core books"),
+					h("label.chk", {title: "Only the core rulebooks (PHB, DMG, MM) and your installed 5etools homebrew"}, (() => { const i = h("input", {type: "checkbox", checked: ui.core}); i.addEventListener("change", () => { ui.core = i.checked; ui.page = 0; render(); }); return i; })(), "Core books"),
 					h("label.chk", {title: "Also show 2014 printings that have a 2024 version"}, (() => { const i = h("input", {type: "checkbox", checked: ui.legacy}); i.addEventListener("change", () => { ui.legacy = i.checked; ui.page = 0; render(); }); return i; })(), "Legacy"),
 				),
 				rarities.length > 2 ? h("div.row", {style: {gap: "4px", flexWrap: "wrap", marginBottom: "6px"}}, ...rarities.map(r => h("span.chip", {class: ui.rarity === r ? "on" : "", on: {click: () => { ui.rarity = r; ui.page = 0; render(); }}}, r === "all" ? "All" : r === "none" ? "Mundane" : tc(r)))) : null,

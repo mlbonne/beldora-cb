@@ -121,21 +121,24 @@ globalThis.TBShop = (() => {
 	const CORE = new Set(["xphb", "xdmg", "xmm", "phb", "dmg", "mm"]);
 	/** All priced items, deduplicated: the 2024 printing wins over a reprinted older one. */
 	const catalog = async () => {
-		if (_cat) return _cat;
+		// House-rule items come and go: the cached catalog follows them
+		const hrKey = globalThis.TBHouse ? TBHouse.list("item").map(i => `${i.source}:${i.name}:${i.value || 0}`).join(",") : "";
+		if (_cat && _cat.hrKey === hrKey) return _cat;
 		const {all, byKey} = await R().loadItems();
 		const rows = [];
 		for (const ent of all) {
-			if (ent.age === "futuristic" || ent.age === "modern") continue;
+			// Official modern and futuristic gear stays out; installed homebrew was chosen on purpose
+			if ((ent.age === "futuristic" || ent.age === "modern") && !ent._tbBrew) continue;
 			if (lc(ent.rarity) === "artifact") continue;
 			const cp = priceOf(ent, byKey);
 			if (cp == null) continue;
-			rows.push({key: R().refKey(ent), ent, name: ent.name, source: ent.source, cp, magic: isMagic(ent), rarity: isMagic(ent) ? lc(ent.rarity) : "none", reprinted: !!(ent.reprintedAs && ent.reprintedAs.length), core: CORE.has(lc(ent.source)), treasure: isTreasure(ent)});
+			rows.push({key: R().refKey(ent), ent, name: ent.name, source: ent.source, cp, magic: isMagic(ent), rarity: isMagic(ent) ? lc(ent.rarity) : "none", reprinted: !!(ent.reprintedAs && ent.reprintedAs.length), core: CORE.has(lc(ent.source)) || !!ent._tbBrew || !!ent._tbHR, brew: !!ent._tbBrew, hr: !!ent._tbHR, treasure: isTreasure(ent)});
 		}
 		rows.sort((a, b) => a.name.localeCompare(b.name));
 		const spells = (await D().loadSpells()).filter(s => !(s.reprintedAs && s.reprintedAs.length));
 		const scrolls = spells.map(s => ({key: `scroll:${R().refKey(s)}`, scroll: s, name: `Spell Scroll: ${s.name}`, source: s.source, level: s.level, cp: scrollPrice(s.level), magic: true, rarity: ["common", "common", "uncommon", "uncommon", "rare", "rare", "very rare", "very rare", "very rare", "legendary"][s.level], core: CORE.has(lc(s.source)), reprinted: false}))
 			.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-		_cat = {rows, byKey, scrolls, spells};
+		_cat = {rows, byKey, scrolls, spells, hrKey};
 		return _cat;
 	};
 	/** The inventory entry for a Spell Scroll of a given spell (the generic scroll item, with the spell noted). */

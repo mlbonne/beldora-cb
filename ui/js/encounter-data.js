@@ -121,7 +121,8 @@ globalThis.TBEnc = (() => {
 
 	const loadMonsters = () => once("monsters", async () => {
 		const [json] = await Promise.all([DataUtil.monster.loadJSON(), DataUtil.monster.pPreloadLegendaryGroupsSite()]);
-		const all = json.monster || [];
+		// Installed 5etools homebrew creatures join the index
+		const all = [...(json.monster || []), ...(globalThis.TBBrew ? await TBBrew.get("monster") : [])];
 		const present = new Set(all.map(m => keyOf(m.name, m.source)));
 		const out = [];
 		for (const m of all) {

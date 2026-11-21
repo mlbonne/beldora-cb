@@ -94,6 +94,19 @@ globalThis.TBUI = (() => {
 		});
 	});
 
+	/** A short list of options; resolves to the chosen value or null. options: [{value, label, hint?}] */
+	const choose = (title, options) => new Promise(resolve => {
+		let done = false;
+		const finish = (v) => { if (done) return; done = true; m.close(); resolve(v); };
+		const m = modal({
+			title,
+			className: "choose",
+			body: h("div.choose-list", ...options.map(o => h("button.btn.choose-opt", {on: {click: () => finish(o.value)}}, h("span", o.label), o.hint ? h("small.muted", o.hint) : null))),
+			footer: [h("button.btn", {on: {click: () => finish(null)}}, "Cancel")],
+			onClose: () => { if (!done) { done = true; resolve(null); } },
+		});
+	});
+
 	/** An iframe that shows booklet-styled HTML fragments. */
 	const fragFrame = () => {
 		const frame = h("iframe.frag-frame", {src: "tb-frag.html"});
@@ -187,5 +200,5 @@ globalThis.TBUI = (() => {
 	touchSelects();
 	// endregion
 
-	return {h, clear, toast, modal, prompt, confirm, fragFrame, debounce, fileToDataUrl, selectSheet};
+	return {h, clear, toast, modal, prompt, confirm, choose, fragFrame, debounce, fileToDataUrl, selectSheet};
 })();
